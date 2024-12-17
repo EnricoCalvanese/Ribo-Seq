@@ -26,13 +26,16 @@ for file in ${INPUT_DIR}/*_trimmed.fq; do
     base=$(basename ${file} _trimmed.fq)
     
     # Bowtie2 alignment to rRNA/tRNA index
-    # -v 3 allows up to 3 mismatches
+    # --very-fast for quick alignment
     # --un-gz will output reads that do NOT align to the reference
     bowtie2 -x ${REFERENCE} \
             -U ${file} \
-            -v 3 \
+            --very-fast \
             --un-gz ${OUTPUT_DIR}/${base}_non_rRNA_tRNA.fastq.gz \
             -S ${OUTPUT_DIR}/${base}_rRNA_tRNA_alignments.sam
+
+    # Optional: compress the SAM file to save space
+    gzip ${OUTPUT_DIR}/${base}_rRNA_tRNA_alignments.sam
 done
 
 echo "rRNA/tRNA filtering completed."
