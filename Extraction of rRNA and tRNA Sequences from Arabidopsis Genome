@@ -1,0 +1,26 @@
+# Create a directory for references
+mkdir -p tair10_reference
+cd tair10_reference
+
+# Download TAIR10 genome and annotation
+wget https://ftp.ensemblgenomes.ebi.ac.uk/pub/plants/release-60/fasta/arabidopsis_thaliana/dna/Arabidopsis_thaliana.TAIR10.dna.toplevel.fa.gz
+wget https://ftp.ensemblgenomes.ebi.ac.uk/pub/plants/release-60/gff3/arabidopsis_thaliana/Arabidopsis_thaliana.TAIR10.60.gff3.gz
+
+#Unzip both 
+gunzip Arabidopsis_thaliana.TAIR10.60.gff3.gz
+gunzip Arabidopsis_thaliana.TAIR10.dna.toplevel.fa.gz
+
+# Extract rRNA sequences
+grep -P "\trRNA\t" Arabidopsis_thaliana.TAIR10.60.gff3 | awk '{print $1"\t"$4-1"\t"$5}' > rRNA_coords.bed
+bedtools getfasta -fi Arabidopsis_thaliana.TAIR10.dna.toplevel.fa -bed rRNA_coords.bed -fo rRNA_sequences.fasta
+
+# Extract tRNA sequences
+grep -P "\ttRNA\t" Arabidopsis_thaliana.TAIR10.60.gff3 | awk '{print $1"\t"$4-1"\t"$5}' > tRNA_coords.bed
+bedtools getfasta -fi Arabidopsis_thaliana.TAIR10.dna.toplevel.fa -bed tRNA_coords.bed -fo tRNA_sequences.fasta
+
+# Combine rRNA and tRNA sequences
+cat rRNA_sequences.fasta tRNA_sequences.fasta > rRNA_tRNA_combined.fasta
+
+# Create a Bowtie2 index
+module load bio/bowtie2/2.5.1-gcc-11.4.0
+bowtie2-build rRNA_tRNA_combined.fasta rRNA_tRNA_index
