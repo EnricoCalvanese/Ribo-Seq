@@ -1,13 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=bowtie2_mapping
+#SBATCH --account=fc_rnaseq
+#SBATCH --partition=savio2
+#SBATCH --qos=savio_normal
 #SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
-#SBATCH --time=12:00:00
-#SBATCH --output=bowtie2_mapping_%A_%a.out
-#SBATCH --error=bowtie2_mapping_%A_%a.err
-#SBATCH --array=0-5
+#SBATCH --ntasks-per-node=24
+#SBATCH --time=72:00:00
+#SBATCH --mail-user=enrico_calvane@berkeley.edu
+#SBATCH --mail-type=ALL
 
 # Set up input and output directories
 REFERENCE_DIR="/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference"
