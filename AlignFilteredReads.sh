@@ -39,7 +39,7 @@ fi
 bowtie2 -x ${REFERENCE_DIR}/TAIR10_index \
         -U ${INPUT_DIR}/${INPUT_FILE} \
         -S ${OUTPUT_DIR}/${SAMPLE_NAME}_aligned.sam \
-        --very-sensitive \
+        --sensitive \
         -N 1 \
         -L 20 \
         --np 0 \
