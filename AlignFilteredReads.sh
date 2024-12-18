@@ -26,9 +26,9 @@ INPUT_FILES=(SRR4203374_non_rRNA_tRNA.fastq.gz SRR4203375_non_rRNA_tRNA.fastq.gz
 INPUT_FILE=${INPUT_FILES[${SLURM_ARRAY_TASK_ID}]}
 SAMPLE_NAME=$(basename ${INPUT_FILE} _non_rRNA_tRNA.fastq.gz)
 
-# Load Bowtie2 module (adjust based on your system's module system)
-module load bowtie2
-module load samtools
+# Load required modules
+module load bio/bowtie2/2.5.1-gcc-11.4.0
+module load bio/samtools/1.17-gcc-11.4.0
 
 # Build Bowtie2 index (if not already done)
 if [ ! -f "${REFERENCE_DIR}/TAIR10_index.1.bt2" ]; then
