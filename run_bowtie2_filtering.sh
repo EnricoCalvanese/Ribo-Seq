@@ -8,6 +8,8 @@
 #SBATCH --mail-user=enrico_calvane@berkeley.edu
 #SBATCH --mail-type=ALL
 
+cd /global/scratch/users/enricocalvane/riboseq/imb2
+
 # Create output directories
 mkdir -p filtered_reads
 mkdir -p alignment_logs
