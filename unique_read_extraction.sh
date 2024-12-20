@@ -7,10 +7,14 @@
 #SBATCH --time=06:00:00
 #SBATCH --mail-user=enrico_calvane@berkeley.edu
 #SBATCH --mail-type=ALL
-
+ 
 cd /global/scratch/users/enricocalvane/riboseq/imb2
 
-bio/samtools/1.17-gcc-11.4.0
+mkdir unique_reads
+
+cd unique_reads
+
+module load bio/samtools/1.17-gcc-11.4.0
 
 # Process LZT101-1
 samtools view -H /global/scratch/users/enricocalvane/riboseq/imb2/hisat_alignment/LZT101-1.sam > H_LZT101-1.txt
