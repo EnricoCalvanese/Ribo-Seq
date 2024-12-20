@@ -1,4 +1,18 @@
 #!/bin/bash
+#SBATCH --account=fc_rnaseq
+#SBATCH --partition=savio2
+#SBATCH --qos=savio_normal
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=24
+#SBATCH --time=06:00:00
+#SBATCH --mail-user=enrico_calvane@berkeley.edu
+#SBATCH --mail-type=ALL
+ 
+cd /global/scratch/users/enricocalvane/riboseq/imb2
+
+cd unique_reads
+
+module load bio/samtools/1.17-gcc-11.4.0
 
 # First, sort all BAM files
 samtools sort /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/LZT101-1_uniq.bam -o /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/LZT101-1_uniq_sort.bam
