@@ -69,6 +69,5 @@ fastq_pair \
 
 # Move paired files to paired_reads directory
 echo "Moving paired files to paired_reads directory..."
-mv *paired.fq paired_reads/
-
+mv LZT101-1_L1_Q18328W9619.R1.rmadaptor.clean.fq.paired.fq /global/scratch/users/enricocalvane/riboseq/imb2/paired_reads
 echo "Repair process complete. Check pair_repair_logs directory for processing logs."
