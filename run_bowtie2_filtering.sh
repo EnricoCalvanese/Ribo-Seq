@@ -10,6 +10,9 @@
 
 cd /global/scratch/users/enricocalvane/riboseq/imb2
 
+# Load required modules
+module load bio/bowtie2/2.5.1-gcc-11.4.0
+
 # Create output directories
 mkdir -p filtered_reads
 mkdir -p alignment_logs
