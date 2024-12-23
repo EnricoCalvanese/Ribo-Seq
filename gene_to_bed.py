@@ -4,48 +4,38 @@ import sys
 import argparse
 
 def parse_gtf(gtf_file):
-    """Parse GTF file and extract gene coordinates"""
+    """Parse GTF file and extract gene coordinates using gene_id field"""
     gene_coords = {}
     with open(gtf_file) as f:
         for line in f:
             if line.startswith('#'):
                 continue
             parts = line.strip().split('\t')
-            if len(parts) < 9 or parts[2] != 'gene':
+            if len(parts) < 9:
                 continue
                 
             # Extract gene ID from the GTF attributes field
             attributes = parts[8]
-            # Print first few attributes for debugging
-            if len(gene_coords) == 0:
-                print(f"Debug - First gene attributes: {attributes}", file=sys.stderr)
-                
-            # Handle different possible formats of gene IDs in GTF
             gene_id = None
             for attr in attributes.split(';'):
                 attr = attr.strip()
                 if attr.startswith('gene_id'):
-                    gene_id = attr.split('"')[1]
+                    # Extract the gene ID between quotes and remove "gene:" prefix
+                    gene_id = attr.split('"')[1].replace("gene:", "")
                     break
                     
-            if gene_id:
-                # Remove any prefix/suffix to match the basic TAIR ID format
-                gene_id = gene_id.replace("gene:", "").strip()
+            if gene_id and gene_id not in gene_coords:
                 gene_coords[gene_id] = {
                     'chr': parts[0],
                     'start': parts[3],
                     'end': parts[4],
                     'strand': parts[6]
                 }
-                
-                # Print first gene found for debugging
-                if len(gene_coords) == 1:
-                    print(f"Debug - First gene parsed: {gene_id}", file=sys.stderr)
-    
-    # Print number of genes found
+
+    # Print statistics for debugging
     print(f"Debug - Total genes found in GTF: {len(gene_coords)}", file=sys.stderr)
-    # Print a few example gene IDs
-    print(f"Debug - Example gene IDs in GTF: {list(gene_coords.keys())[:5]}", file=sys.stderr)
+    if gene_coords:
+        print(f"Debug - Example gene IDs in GTF: {list(gene_coords.keys())[:5]}", file=sys.stderr)
     
     return gene_coords
 
@@ -68,14 +58,13 @@ def create_bed(gene_list_file, gtf_file, output_file):
     # Write BED file
     with open(output_file, 'w') as out:
         for gene in genes:
-            clean_gene = gene.strip().replace("gene:", "")
-            if clean_gene in gene_coords:
-                coords = gene_coords[clean_gene]
-                bed_line = f"{coords['chr']}\t{coords['start']}\t{coords['end']}\t{clean_gene}\t.\t{coords['strand']}\n"
+            if gene in gene_coords:
+                coords = gene_coords[gene]
+                bed_line = f"{coords['chr']}\t{coords['start']}\t{coords['end']}\t{gene}\t.\t{coords['strand']}\n"
                 out.write(bed_line)
                 matches += 1
             else:
-                print(f"Warning: Gene {clean_gene} not found in GTF file", file=sys.stderr)
+                print(f"Warning: Gene {gene} not found in GTF file", file=sys.stderr)
                 mismatches += 1
     
     print(f"Summary: {matches} genes found, {mismatches} genes not found", file=sys.stderr)
