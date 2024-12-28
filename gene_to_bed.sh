@@ -12,3 +12,5 @@
 python gene_to_bed.py TEup_genes.txt /global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf TEup_genes.bed
 
 python gene_to_bed.py TEdown_genes.txt /global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf TEdown_genes.bed
+
+python gene_to_bed.py TEdnc_genes.txt /global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf TEnc_genes.bed
