@@ -12,7 +12,7 @@ module load bio/bedtools2/2.31.0-gcc-11.4.0
 module load bio/samtools/1.17-gcc-11.4.0
 
 # Create directories for filtered files
-mkdir -p filtered_bams/TEup filtered_bams/TEdown
+mkdir -p filtered_bams/TEup filtered_bams/TEdown filtered_bams/TEnc
 
 # For TEup genes
 for bam in LZT103-1_uniq_sort.bam LZT103-2_uniq_sort.bam LZT104-1_uniq_sort.bam LZT104-2_uniq_sort.bam; do
@@ -27,6 +27,14 @@ for bam in LZT103-1_uniq_sort.bam LZT103-2_uniq_sort.bam LZT104-1_uniq_sort.bam 
     echo "Processing $bam for TEdown genes..."
     output="filtered_bams/TEdown/${bam/.bam/_TEdown.bam}"
     samtools view -b -L TEdown_genes.bed $bam > $output
+    samtools index $output
+done
+
+# For TEnc genes
+for bam in LZT103-1_uniq_sort.bam LZT103-2_uniq_sort.bam LZT104-1_uniq_sort.bam LZT104-2_uniq_sort.bam; do
+    echo "Processing $bam for TEnc genes..."
+    output="filtered_bams/TEnc/${bam/.bam/_TEnc.bam}"
+    samtools view -b -L TEnc_genes.bed $bam > $output
     samtools index $output
 done
 
@@ -47,6 +55,13 @@ done
 
 echo -e "\nTEdown filtered files:"
 for bam in filtered_bams/TEdown/*_TEdown.bam; do
+    count=$(samtools view -c $bam)
+    basename=$(basename $bam)
+    echo "$basename: $count reads"
+done
+
+echo -e "\nTEnc filtered files:"
+for bam in filtered_bams/TEnc/*_TEnc.bam; do
     count=$(samtools view -c $bam)
     basename=$(basename $bam)
     echo "$basename: $count reads"
