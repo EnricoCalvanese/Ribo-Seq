@@ -15,7 +15,7 @@ cd /global/scratch/users/enricocalvane/riboseq/imb2/systemPipeR
 mkdir -p uORF_counts/TEup uORF_counts/TEnc uORF_counts/TEdown
 
 # For TEnc
-for bam in TEnc/LZT10*_uniq_sort_TEnc.bam; do
+for bam in /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/filtered_bams/TEnc/LZT10*_uniq_sort_TEnc.bam; do
     sample=$(basename $bam _uniq_sort_TEnc.bam)
     htseq-count -f bam -r name -s yes \
         -t sequence_feature \
@@ -25,7 +25,7 @@ for bam in TEnc/LZT10*_uniq_sort_TEnc.bam; do
 done
 
 # For TEup
-for bam in TEup/LZT10*_uniq_sort_TEup.bam; do
+for bam in /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/filtered_bams/TEup/LZT10*_uniq_sort_TEup.bam; do
     sample=$(basename $bam _uniq_sort_TEup.bam)
     htseq-count -f bam -r name -s yes \
         -t sequence_feature \
@@ -35,7 +35,7 @@ for bam in TEup/LZT10*_uniq_sort_TEup.bam; do
 done
 
 # For TEdown
-for bam in TEdown/LZT10*_uniq_sort_TEdown.bam; do
+for bam in /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/filtered_bams/TEdown/LZT10*_uniq_sort_TEdown.bam; do
     sample=$(basename $bam _uniq_sort_TEdown.bam)
     htseq-count -f bam -r name -s yes \
         -t sequence_feature \
