@@ -1,7 +1,18 @@
+#!/bin/bash
+#SBATCH --account=fc_rnaseq
+#SBATCH --partition=savio2
+#SBATCH --qos=savio_normal
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=24
+#SBATCH --time=12:00:00
+#SBATCH --mail-user=enrico_calvane@berkeley.edu
+#SBATCH --mail-type=ALL
 
+#riboseq must be activated
+cd /global/scratch/users/enricocalvane/riboseq/imb2/systemPipeR
 
 # Create output directories for counts
-mkdir -p counts/TEup counts/TEnc counts/TEdown
+mkdir -p uORF_counts/TEup uORF_counts/TEnc uORF_counts/TEdown
 
 # For TEnc
 for bam in TEnc/LZT10*_uniq_sort_TEnc.bam; do
@@ -10,7 +21,7 @@ for bam in TEnc/LZT10*_uniq_sort_TEnc.bam; do
         -t sequence_feature \
         -i ID \
         -m union --nonunique none \
-        $bam /path/to/uorf.gff > counts/TEnc/${sample}_uorf_counts.txt
+        $bam /global/scratch/users/enricocalvane/riboseq/imb2/systemPipeR/uorf.gff > uORF_counts/TEnc/${sample}_uorf_counts.txt
 done
 
 # For TEup
@@ -20,7 +31,7 @@ for bam in TEup/LZT10*_uniq_sort_TEup.bam; do
         -t sequence_feature \
         -i ID \
         -m union --nonunique none \
-        $bam /path/to/uorf.gff > counts/TEup/${sample}_uorf_counts.txt
+        $bam /global/scratch/users/enricocalvane/riboseq/imb2/systemPipeR/uorf.gff > uORF_counts/TEup/${sample}_uorf_counts.txt
 done
 
 # For TEdown
@@ -30,5 +41,5 @@ for bam in TEdown/LZT10*_uniq_sort_TEdown.bam; do
         -t sequence_feature \
         -i ID \
         -m union --nonunique none \
-        $bam /path/to/uorf.gff > counts/TEdown/${sample}_uorf_counts.txt
+        $bam /global/scratch/users/enricocalvane/riboseq/imb2/systemPipeR/uorf.gff > uORF_counts/TEdown/${sample}_uorf_counts.txt
 done
