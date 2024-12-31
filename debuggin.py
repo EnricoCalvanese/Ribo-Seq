@@ -10,8 +10,7 @@ import sys
 BASE_DIR = "/global/scratch/users/enricocalvane/riboseq/imb2"
 GENOME_GFF = "/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gff3"
 UORF_GFF = os.path.join(BASE_DIR, "systemPipeR/uorf.gff")
-OUTPUT_DIR = os.path.join(BASE_DIR, "translation_analysis")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+OUTPUT_DIR = os.path.join(BASE_DIR, "systemPipeR/translating_AUGs")
 DB_PATH = os.path.join(OUTPUT_DIR, "genome.db")
 
 def create_genome_db():
