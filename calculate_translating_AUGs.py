@@ -21,6 +21,55 @@ SAMPLE_INFO = {
     'LZT104-2': {'type': 'Ribo-Seq', 'condition': 'imb2', 'replicate': 2}
 }
 
+def calculate_rpkm(bam_file, feature_coordinates, feature_lengths):
+    """
+    Calculate RPKM for given genomic features
+    
+    Parameters:
+    bam_file (str): Path to BAM file
+    feature_coordinates (dict): Dictionary of feature coordinates {feature_id: (start, end)}
+    feature_lengths (dict): Dictionary of feature lengths {feature_id: length}
+    
+    Returns:
+    dict: Dictionary of RPKM values for each feature
+    """
+    try:
+        # Open BAM file
+        bam = pysam.AlignmentFile(bam_file, "rb")
+        
+        # Get total mapped reads
+        total_reads = float(sum(1 for read in bam.fetch() if not read.is_unmapped))
+        
+        # Initialize counts
+        counts = defaultdict(int)
+        
+        # Count reads per feature
+        for feature_id, (start, end) in feature_coordinates.items():
+            try:
+                # Get chromosome/contig name from the feature_id if needed
+                chrom = feature_id.split(':')[0] if ':' in feature_id else feature_id
+                
+                # Count reads in feature region
+                for read in bam.fetch(chrom, start, end):
+                    if not read.is_unmapped:
+                        counts[feature_id] += 1
+            except ValueError:
+                continue
+        
+        # Calculate RPKM
+        rpkm = {}
+        for feature_id in counts:
+            if feature_id in feature_lengths and feature_lengths[feature_id] > 0:
+                # RPKM = (reads * 10^9) / (total_reads * feature_length)
+                rpkm[feature_id] = (counts[feature_id] * 1e9) / (total_reads * feature_lengths[feature_id])
+        
+        bam.close()
+        return rpkm
+    
+    except Exception as e:
+        print(f"Error processing {bam_file}: {str(e)}")
+        return {}
+
 def get_bam_files():
     """Get sorted lists of RNA-seq and Ribo-seq BAM files"""
     bam_dir = os.path.join(BASE_DIR, "unique_reads")
@@ -38,6 +87,8 @@ def get_bam_files():
 
 def parse_uorf_data():
     """Parse uORF GFF file and create transcript annotation database"""
+    print("Parsing uORF GFF file...")
+    
     # Create temporary SQLite database
     db_path = "temp_uorf.db"
     if os.path.exists(db_path):
@@ -63,6 +114,7 @@ def parse_uorf_data():
         'five_prime_leaders': {}
     }
     
+    print("Extracting features...")
     # Extract uORF and transcript information
     for feature in db.all_features():
         if feature.featuretype == 'uORF':
@@ -85,16 +137,19 @@ def parse_uorf_data():
                 else:
                     transcript_info['cds_coords'][transcript_id] = (feature.start, feature.end)
                     transcript_info['cds_lengths'][transcript_id] = feature.end - feature.start
-                    # Assuming mAUG is at CDS start
                     transcript_info['mAUG_positions'][transcript_id] = feature.start
                 
                 transcript_info['transcript_ids'].add(transcript_id)
+    
+    print(f"Found {len(uorf_data)} transcripts with uORFs")
+    print(f"Found {len(transcript_info['transcript_ids'])} total transcripts")
     
     os.remove(db_path)
     return uorf_data, transcript_info
 
 def analyze_data_distribution():
     """Analyze data distribution to determine appropriate cutoffs"""
+    print("Analyzing data distribution...")
     rna_files, ribo_files = get_bam_files()
     uorf_data, transcript_info = parse_uorf_data()
     
@@ -102,17 +157,19 @@ def analyze_data_distribution():
     exon_rpkm = defaultdict(list)
     cds_rpkm = defaultdict(list)
     
+    print("Processing RNA-seq files...")
     for rna_file in rna_files:
+        print(f"Processing {os.path.basename(rna_file)}")
         rpkm = calculate_rpkm(rna_file, transcript_info['exon_coords'], 
                             transcript_info['exon_lengths'])
-        for value in rpkm.values():
-            exon_rpkm['RNA'].append(value)
+        exon_rpkm['RNA'].extend(rpkm.values())
     
+    print("Processing Ribo-seq files...")
     for ribo_file in ribo_files:
+        print(f"Processing {os.path.basename(ribo_file)}")
         rpkm = calculate_rpkm(ribo_file, transcript_info['cds_coords'],
                             transcript_info['cds_lengths'])
-        for value in rpkm.values():
-            cds_rpkm['Ribo'].append(value)
+        cds_rpkm['Ribo'].extend(rpkm.values())
     
     # Calculate percentiles
     percentiles = [25, 50, 75, 90, 95]
@@ -125,36 +182,21 @@ def analyze_data_distribution():
     
     return distribution_stats
 
-def calculate_rpkm(bam_file, feature_coordinates, feature_lengths):
-    """Calculate RPKM for given genomic features"""
-    # Implementation remains the same as in previous version
-    pass
-
 def main():
     """Main analysis workflow"""
+    print("Starting analysis...")
+    
     # Get file paths
     rna_files, ribo_files = get_bam_files()
-    
-    # Parse uORF and transcript data
-    uorf_data, transcript_info = parse_uorf_data()
+    print(f"Found {len(rna_files)} RNA-seq files and {len(ribo_files)} Ribo-seq files")
     
     # Analyze data distribution for cutoff determination
     distribution_stats = analyze_data_distribution()
     
     # Print initial statistics
-    print("Data Distribution Statistics:")
+    print("\nData Distribution Statistics:")
     print("RNA-seq RPKM percentiles:", distribution_stats['RNA_exon_percentiles'])
     print("Ribo-seq RPKM percentiles:", distribution_stats['Ribo_CDS_percentiles'])
-    
-    # Based on distribution, we can adjust these cutoffs
-    rpkm_cutoff = 1  # We might want to adjust this based on distribution
-    background_cutoff = None  # Will be calculated based on data
-    min_raw_count = 10
-    
-    # Run main analysis
-    results = analyze_augs(rna_files, ribo_files, transcript_info, uorf_data)
-    
-    return results
 
 if __name__ == "__main__":
     main()
