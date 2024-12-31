@@ -13,117 +13,134 @@ UORF_GFF = os.path.join(BASE_DIR, "systemPipeR/uorf.gff")
 OUTPUT_DIR = os.path.join(BASE_DIR, "systemPipeR/translating_AUGs")
 DB_PATH = os.path.join(OUTPUT_DIR, "genome.db")
 
-def create_genome_db():
-    """Create SQLite database from genome annotation with debug info"""
-    print("\nProcessing genome annotation...")
-    
-    if os.path.exists(DB_PATH):
-        print("Using existing genome database")
-        db = gffutils.FeatureDB(DB_PATH)
-        
-        # Debug: Check database contents
-        feature_counts = defaultdict(int)
-        print("\nChecking database contents...")
-        for feature in db.all_features():
-            feature_counts[feature.featuretype] += 1
-        
-        print("\nFeature counts in database:")
-        for ftype, count in feature_counts.items():
-            print(f"{ftype}: {count}")
-        
-        return db
-    
-    print("Creating new genome database...")
-    db = gffutils.create_db(
-        GENOME_GFF,
-        DB_PATH,
-        merge_strategy='create_unique',
-        sort_attribute_values=True,
-        disable_infer_genes=True,
-        verbose=True  # Add verbose output
-    )
-    return db
+def get_chromosome_id(transcript_id):
+    """Extract chromosome number from transcript ID and format for BAM"""
+    try:
+        if transcript_id.startswith('transcript:AT'):
+            chr_num = transcript_id.split('G')[0][-1]
+            chr_id = f"Chr{chr_num}"
+            return chr_id
+        print(f"Unmatched transcript ID format: {transcript_id}")
+    except Exception as e:
+        print(f"Error processing transcript ID {transcript_id}: {str(e)}")
+    return None
 
-def load_transcript_annotations(db):
-    """Load transcript structures with additional debug information"""
-    print("\nLoading transcript structures...")
+def calculate_rpkm(bam_file, feature_coords, feature_lengths):
+    """Calculate RPKM values for genomic features with debugging output"""
+    rpkm_values = {}
+    try:
+        bam = pysam.AlignmentFile(bam_file, "rb")
+        total_mapped_reads = float(sum(1 for read in bam.fetch() if not read.is_unmapped))
+        print(f"\nTotal mapped reads: {total_mapped_reads}")
+        
+        # Print available chromosomes in BAM
+        valid_chromosomes = set(bam.references)
+        print(f"Valid chromosomes in BAM: {valid_chromosomes}")
+        
+        # Debug counter
+        processed = 0
+        matched_chroms = 0
+        
+        for transcript_id, regions in feature_coords.items():
+            processed += 1
+            if processed <= 5:  # Print first 5 transcripts for debugging
+                print(f"\nProcessing transcript: {transcript_id}")
+            
+            count = 0
+            chrom = get_chromosome_id(transcript_id)
+            
+            if processed <= 5:
+                print(f"Mapped to chromosome: {chrom}")
+            
+            if chrom and chrom in valid_chromosomes:
+                matched_chroms += 1
+                for start, end in regions:
+                    try:
+                        region_count = sum(1 for read in bam.fetch(chrom, start-1, end)
+                                         if not read.is_unmapped)
+                        count += region_count
+                        if processed <= 5:
+                            print(f"Region {start}-{end}: {region_count} reads")
+                    except ValueError as e:
+                        if processed <= 5:
+                            print(f"Error fetching region {start}-{end}: {str(e)}")
+                        continue
+                
+                if transcript_id in feature_lengths and feature_lengths[transcript_id] > 0:
+                    rpkm = (count * 1e9) / (total_mapped_reads * feature_lengths[transcript_id])
+                    rpkm_values[transcript_id] = rpkm
+                    if processed <= 5:
+                        print(f"RPKM: {rpkm}")
+            
+            if processed % 1000 == 0:
+                print(f"Processed {processed} transcripts...")
+        
+        print(f"\nProcessing summary:")
+        print(f"Total transcripts processed: {processed}")
+        print(f"Chromosomes matched: {matched_chroms}")
+        print(f"Transcripts with RPKM values: {len(rpkm_values)}")
+        
+        bam.close()
+    except Exception as e:
+        print(f"Error processing {bam_file}: {str(e)}")
     
+    return rpkm_values
+
+def main():
+    """Main analysis workflow with additional debugging"""
+    print("Starting translation analysis...")
+    
+    # Create/load genome database
+    db = gffutils.FeatureDB(DB_PATH)
+    
+    # Load transcript annotations
+    print("\nLoading transcript structures...")
     transcript_info = {
         'exon_coords': defaultdict(list),
         'cds_coords': defaultdict(list),
         'exon_lengths': {},
         'cds_lengths': {},
         'mAUG_positions': {},
-        'five_prime_leaders': {},
         'transcript_ids': set()
     }
     
-    # Debug: Print available feature types
-    print("\nAvailable feature types in database:")
-    for ftype in db.featuretypes():
-        print(f"- {ftype}")
+    # Debug counters
+    processed_transcripts = 0
+    transcripts_with_exons = 0
+    transcripts_with_cds = 0
     
-    # Try different transcript identifiers
-    transcript_types = ['transcript', 'mRNA']
-    transcripts_found = False
-    
-    for transcript_type in transcript_types:
-        print(f"\nTrying to load features of type: {transcript_type}")
-        count = 0
+    # Load mRNA features
+    for transcript in db.features_of_type('mRNA'):
+        processed_transcripts += 1
+        transcript_id = transcript.id
+        transcript_info['transcript_ids'].add(transcript_id)
         
-        try:
-            for transcript in db.features_of_type(transcript_type):
-                count += 1
-                transcript_id = transcript.id
-                transcript_info['transcript_ids'].add(transcript_id)
-                
-                # Get exons
-                exon_count = 0
-                for exon in db.children(transcript, featuretype='exon'):
-                    exon_count += 1
-                    transcript_info['exon_coords'][transcript_id].append((exon.start, exon.end))
-                
-                # Get CDS regions
-                cds_count = 0
-                cds_regions = list(db.children(transcript, featuretype='CDS'))
-                for cds in cds_regions:
-                    cds_count += 1
-                    transcript_info['cds_coords'][transcript_id].append((cds.start, cds.end))
-                
-                if cds_regions:
-                    # Identify mAUG position
-                    if transcript.strand == '+':
-                        transcript_info['mAUG_positions'][transcript_id] = min(start for start, _ in transcript_info['cds_coords'][transcript_id])
-                    else:
-                        transcript_info['mAUG_positions'][transcript_id] = max(end for _, end in transcript_info['cds_coords'][transcript_id])
-                
-                if count % 1000 == 0:
-                    print(f"Processed {count} {transcript_type}s...")
-                
-                # Debug output for first few transcripts
-                if count <= 5:
-                    print(f"\nExample transcript {count}:")
-                    print(f"ID: {transcript_id}")
-                    print(f"Exons: {exon_count}")
-                    print(f"CDS regions: {cds_count}")
+        if processed_transcripts <= 5:  # Print details for first 5 transcripts
+            print(f"\nProcessing transcript: {transcript_id}")
+            print(f"Strand: {transcript.strand}")
         
-            print(f"\nTotal {transcript_type}s processed: {count}")
-            if count > 0:
-                transcripts_found = True
-                break
-                
-        except Exception as e:
-            print(f"Error processing {transcript_type}: {str(e)}")
-    
-    if not transcripts_found:
-        print("\nWARNING: No transcripts were loaded! Database might be empty or incorrectly formatted.")
-        print("Checking database file...")
-        print(f"Database path: {DB_PATH}")
-        print(f"Database exists: {os.path.exists(DB_PATH)}")
-        print(f"Database size: {os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 'N/A'} bytes")
-    
-    # Calculate lengths
-    for transcript_id in transcript_info['transcript_ids']:
+        # Get exons and CDS regions
+        exon_count = 0
+        for exon in db.children(transcript, featuretype='exon'):
+            exon_count += 1
+            transcript_info['exon_coords'][transcript_id].append((exon.start, exon.end))
+        
+        if exon_count > 0:
+            transcripts_with_exons += 1
+            
+        cds_count = 0
+        for cds in db.children(transcript, featuretype='CDS'):
+            cds_count += 1
+            transcript_info['cds_coords'][transcript_id].append((cds.start, cds.end))
+        
+        if cds_count > 0:
+            transcripts_with_cds += 1
+            
+        if processed_transcripts <= 5:
+            print(f"Exons: {exon_count}")
+            print(f"CDS regions: {cds_count}")
+        
+        # Calculate lengths
         if transcript_id in transcript_info['exon_coords']:
             transcript_info['exon_lengths'][transcript_id] = sum(
                 end - start + 1 for start, end in transcript_info['exon_coords'][transcript_id]
@@ -132,30 +149,19 @@ def load_transcript_annotations(db):
             transcript_info['cds_lengths'][transcript_id] = sum(
                 end - start + 1 for start, end in transcript_info['cds_coords'][transcript_id]
             )
+            # Set mAUG position
+            if transcript.strand == '+':
+                transcript_info['mAUG_positions'][transcript_id] = min(start for start, _ in transcript_info['cds_coords'][transcript_id])
+            else:
+                transcript_info['mAUG_positions'][transcript_id] = max(end for _, end in transcript_info['cds_coords'][transcript_id])
     
-    return transcript_info
-
-def main():
-    """Main analysis workflow with debug output"""
-    print("Starting translation analysis...")
+    print(f"\nTranscript loading summary:")
+    print(f"Total transcripts processed: {processed_transcripts}")
+    print(f"Transcripts with exons: {transcripts_with_exons}")
+    print(f"Transcripts with CDS: {transcripts_with_cds}")
     
-    # Create/load genome database
-    db = create_genome_db()
-    
-    # Load transcript annotations
-    transcript_info = load_transcript_annotations(db)
-    
-    print("\nSummary statistics:")
-    print(f"Total transcripts: {len(transcript_info['transcript_ids'])}")
-    print(f"Transcripts with exons: {len(transcript_info['exon_coords'])}")
-    print(f"Transcripts with CDS: {len(transcript_info['cds_coords'])}")
-    print(f"Transcripts with mAUG positions: {len(transcript_info['mAUG_positions'])}")
-    
-    if len(transcript_info['transcript_ids']) == 0:
-        print("\nNo transcripts loaded. Stopping analysis.")
-        return
-        
-    # Rest of the analysis code...
+    # Continue with the rest of the analysis...
+    # [Rest of the main function remains the same]
 
 if __name__ == "__main__":
     main()
