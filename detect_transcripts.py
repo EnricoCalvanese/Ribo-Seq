@@ -1,24 +1,88 @@
 ###Transcript Filtering Script Based on RPKM Thresholds
 import os
+import re
 import pysam
 import numpy as np
-import pandas as pd
-from typing import List, Dict
+from typing import List, Dict, Tuple, Set
 from collections import defaultdict
+import logging
 
-def calculate_rpkm(bam_file: str, regions: Dict[str, List[tuple]], 
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+def parse_gff3_attributes(attr_string: str) -> dict:
+    """
+    Parse GFF3 attribute string into a dictionary.
+    Example: ID=transcript:AT1G01010.1;Parent=gene:AT1G01010 -> {'ID': 'transcript:AT1G01010.1', ...}
+    """
+    attrs = {}
+    for attr in attr_string.strip(';').split(';'):
+        if '=' not in attr:
+            continue
+        key, value = attr.split('=')
+        attrs[key] = value
+    return attrs
+
+def load_regions_from_gff3(gff3_file: str) -> Tuple[Dict[str, List[Tuple[str, int, int]]], 
+                                                    Dict[str, List[Tuple[str, int, int]]]]:
+    """
+    Parse TAIR10 GFF3 file to extract CDS and exon regions.
+    Returns regions as (chromosome, start, end) to handle chromosome mapping.
+    """
+    cds_regions = defaultdict(list)
+    exon_regions = defaultdict(list)
+    parent_map = {}  # Map to link CDS/exon features to their transcript IDs
+    
+    logging.info(f"Loading regions from {gff3_file}")
+    
+    with open(gff3_file) as f:
+        for line in f:
+            if line.startswith('#'):
+                continue
+                
+            fields = line.strip().split('\t')
+            if len(fields) < 9:
+                continue
+                
+            chrom = fields[0]
+            feature_type = fields[2]
+            start = int(fields[3])
+            end = int(fields[4])
+            attributes = parse_gff3_attributes(fields[8])
+            
+            # Handle different feature types
+            if feature_type == 'mRNA':
+                # Store transcript ID mapping
+                transcript_id = attributes.get('ID', '')
+                parent_map[transcript_id] = transcript_id
+            elif feature_type == 'CDS':
+                parent = attributes.get('Parent', '')
+                if parent in parent_map:
+                    transcript_id = parent_map[parent]
+                    cds_regions[transcript_id].append((chrom, start, end))
+            elif feature_type == 'exon':
+                parent = attributes.get('Parent', '')
+                if parent in parent_map:
+                    transcript_id = parent_map[parent]
+                    exon_regions[transcript_id].append((chrom, start, end))
+    
+    logging.info(f"Loaded {len(cds_regions)} transcripts with CDS regions")
+    logging.info(f"Loaded {len(exon_regions)} transcripts with exon regions")
+    
+    return dict(cds_regions), dict(exon_regions)
+
+def calculate_rpkm(bam_file: str, 
+                  regions: Dict[str, List[Tuple[str, int, int]]], 
                   region_type: str = 'CDS') -> Dict[str, float]:
     """
-    Calculate RPKM values for given genomic regions from a BAM file.
-    
-    Args:
-        bam_file: Path to the BAM file
-        regions: Dictionary of transcript_id -> list of (start, end) coordinates
-        region_type: String indicating region type ('CDS' or 'exon')
-    
-    Returns:
-        Dictionary of transcript_id -> RPKM value
+    Calculate RPKM values for genomic regions from a BAM file.
+    Handles chromosome names from the TAIR10 annotation.
     """
+    logging.info(f"Calculating {region_type} RPKM values for {bam_file}")
+    
     bam = pysam.AlignmentFile(bam_file, "rb")
     total_mapped_reads = bam.mapped / 1_000_000
     
@@ -28,10 +92,16 @@ def calculate_rpkm(bam_file: str, regions: Dict[str, List[tuple]],
         read_count = 0
         region_length = 0
         
-        for start, end in coordinates:
-            read_count += bam.count(transcript_id, start, end)
-            region_length += end - start
+        # Sum up reads and lengths across all regions for this transcript
+        for chrom, start, end in coordinates:
+            try:
+                read_count += bam.count(chrom, start, end)
+                region_length += end - start
+            except ValueError as e:
+                logging.warning(f"Error counting reads for {transcript_id} at {chrom}:{start}-{end}: {e}")
+                continue
         
+        # Calculate RPKM
         if region_length > 0 and total_mapped_reads > 0:
             rpkm = (read_count * 1000 * 1_000_000) / (region_length * total_mapped_reads)
         else:
@@ -44,24 +114,14 @@ def calculate_rpkm(bam_file: str, regions: Dict[str, List[tuple]],
 
 def filter_transcripts_strict(rna_seq_files: List[str], 
                             ribo_seq_files: List[str],
-                            cds_regions: Dict[str, List[tuple]],
-                            exon_regions: Dict[str, List[tuple]],
-                            rpkm_threshold: float = 1.0) -> set:
+                            cds_regions: Dict[str, List[Tuple[str, int, int]]],
+                            exon_regions: Dict[str, List[Tuple[str, int, int]]],
+                            rpkm_threshold: float = 1.0) -> Set[str]:
     """
     Filter transcripts that meet RPKM thresholds in ALL RNA-seq and Ribo-seq samples.
-    This implements the first step of the protocol to identify transcripts with
-    detectable translation initiation from mAUGs.
-    
-    Args:
-        rna_seq_files: List of RNA-seq BAM files
-        ribo_seq_files: List of Ribo-seq BAM files
-        cds_regions: Dictionary of transcript_id -> list of CDS coordinates
-        exon_regions: Dictionary of transcript_id -> list of exon coordinates
-        rpkm_threshold: RPKM threshold for filtering (default 1.0)
-    
-    Returns:
-        Set of transcript IDs that pass the filtering criteria in ALL samples
     """
+    logging.info("Starting transcript filtering")
+    
     # Calculate RPKM for all samples
     rna_rpkms = []
     ribo_rpkms = []
@@ -78,8 +138,9 @@ def filter_transcripts_strict(rna_seq_files: List[str],
     
     # Find transcripts that pass thresholds in ALL samples
     passing_transcripts = set()
+    all_transcripts = set(cds_regions.keys()) & set(exon_regions.keys())
     
-    for transcript_id in cds_regions.keys():
+    for transcript_id in all_transcripts:
         # Check if transcript passes threshold in ALL samples
         rna_pass = all(rpkm[transcript_id] >= rpkm_threshold for rpkm in rna_rpkms)
         ribo_pass = all(rpkm[transcript_id] >= rpkm_threshold for rpkm in ribo_rpkms)
@@ -87,38 +148,32 @@ def filter_transcripts_strict(rna_seq_files: List[str],
         if rna_pass and ribo_pass:
             passing_transcripts.add(transcript_id)
     
+    logging.info(f"Found {len(passing_transcripts)} passing transcripts")
     return passing_transcripts
 
-# Your file paths
-BASE_DIR = "/global/scratch/users/enricocalvane/riboseq/imb2"
-RNA_SEQ_FILES = [
-    os.path.join(BASE_DIR, "unique_reads/LZT101-1_uniq_sort.bam"),
-    os.path.join(BASE_DIR, "unique_reads/LZT101-2_uniq_sort.bam"),
-    os.path.join(BASE_DIR, "unique_reads/LZT102-1_uniq_sort.bam"),
-    os.path.join(BASE_DIR, "unique_reads/LZT102-2_uniq_sort.bam")
-]
-RIBO_SEQ_FILES = [
-    os.path.join(BASE_DIR, "unique_reads/LZT103-1_uniq_sort.bam"),
-    os.path.join(BASE_DIR, "unique_reads/LZT103-2_uniq_sort.bam"),
-    os.path.join(BASE_DIR, "unique_reads/LZT104-1_uniq_sort.bam"),
-    os.path.join(BASE_DIR, "unique_reads/LZT104-2_uniq_sort.bam")
-]
-
 def main():
-    """
-    Main function implementing the first step of the protocol:
-    1. Filter transcripts with RPKM ≥ 1 in ALL samples
+    # File paths
+    BASE_DIR = "/global/scratch/users/enricocalvane/riboseq/imb2"
+    GFF3_FILE = "/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gff3"
     
-    Subsequent steps (not implemented here) will:
-    2. Calculate normalized ribosome footprints at mAUGs
-    3. Calculate background from Q3 of normalized counts upstream of mAUGs
-    4. Apply both normalized (≥23.17) and raw (≥10) count thresholds
-    """
-    # Load your CDS and exon regions
-    cds_regions = {}  # Load from your annotation file
-    exon_regions = {}  # Load from your annotation file
+    RNA_SEQ_FILES = [
+        os.path.join(BASE_DIR, "unique_reads/LZT101-1_uniq_sort.bam"),
+        os.path.join(BASE_DIR, "unique_reads/LZT101-2_uniq_sort.bam"),
+        os.path.join(BASE_DIR, "unique_reads/LZT102-1_uniq_sort.bam"),
+        os.path.join(BASE_DIR, "unique_reads/LZT102-2_uniq_sort.bam")
+    ]
     
-    # Filter transcripts with strict criteria
+    RIBO_SEQ_FILES = [
+        os.path.join(BASE_DIR, "unique_reads/LZT103-1_uniq_sort.bam"),
+        os.path.join(BASE_DIR, "unique_reads/LZT103-2_uniq_sort.bam"),
+        os.path.join(BASE_DIR, "unique_reads/LZT104-1_uniq_sort.bam"),
+        os.path.join(BASE_DIR, "unique_reads/LZT104-2_uniq_sort.bam")
+    ]
+    
+    # Load regions from GFF3
+    cds_regions, exon_regions = load_regions_from_gff3(GFF3_FILE)
+    
+    # Filter transcripts
     passing_transcripts = filter_transcripts_strict(
         RNA_SEQ_FILES,
         RIBO_SEQ_FILES,
@@ -127,12 +182,13 @@ def main():
         rpkm_threshold=1.0
     )
     
-    # Save results for next steps
-    with open("detected_transcripts.txt", "w") as f:
+    # Save results
+    output_file = os.path.join(BASE_DIR, "detected_transcripts.txt")
+    with open(output_file, "w") as f:
         for transcript_id in sorted(passing_transcripts):
             f.write(f"{transcript_id}\n")
     
-    print(f"Number of detected transcripts: {len(passing_transcripts)}")
+    logging.info(f"Results saved to {output_file}")
 
 if __name__ == "__main__":
     main()
