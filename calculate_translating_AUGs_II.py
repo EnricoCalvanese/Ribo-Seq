@@ -130,8 +130,11 @@ def get_expressed_transcripts(transcript_info, min_rpkm=1.0):
     
     return expressed
 
-def calculate_normalized_counts(bam_file, positions, transcript_rpkm):
-    """Calculate normalized read counts at specific positions"""
+def calculate_normalized_counts(bam_file, positions, transcript_rpkm, min_raw_count=1):
+    """
+    Calculate normalized read counts with improved counting strategy
+    Returns both normalized and raw counts that meet minimum threshold
+    """
     normalized_counts = {}
     raw_counts = {}
     
@@ -144,12 +147,22 @@ def calculate_normalized_counts(bam_file, positions, transcript_rpkm):
             chrom = get_chromosome_id(transcript_id)
             if chrom and chrom in valid_chromosomes:
                 try:
-                    count = sum(1 for read in bam.fetch(chrom, position-1, position+1)
-                              if not read.is_unmapped)
-                    raw_counts[transcript_id] = count
-                    if transcript_id in transcript_rpkm and transcript_rpkm[transcript_id] > 0:
-                        normalized_counts[transcript_id] = (count / total_reads) / transcript_rpkm[transcript_id]
-                except ValueError:
+                    # Extend the window to capture reads spanning the position
+                    window_start = max(0, position - 15)  # Adjust window size as needed
+                    window_end = position + 15
+                    
+                    count = sum(1 for read in bam.fetch(chrom, window_start, window_end)
+                              if not read.is_unmapped and
+                              min(read.reference_end, window_end) - max(read.reference_start, window_start) > 0)
+                    
+                    if count >= min_raw_count:
+                        raw_counts[transcript_id] = count
+                        if transcript_id in transcript_rpkm and transcript_rpkm[transcript_id] > 0:
+                            # Normalize by total reads and transcript expression
+                            norm_count = (count * 1e6) / (total_reads * transcript_rpkm[transcript_id])
+                            normalized_counts[transcript_id] = norm_count
+                
+                except ValueError as e:
                     continue
         
         bam.close()
@@ -158,81 +171,71 @@ def calculate_normalized_counts(bam_file, positions, transcript_rpkm):
     
     return normalized_counts, raw_counts
 
+def calculate_background_cutoff(expressed_transcripts, transcript_info, ribo_files):
+    """
+    Calculate background cutoff from regions upstream of mAUGs
+    """
+    print("\nCalculating background cutoff...")
+    background_counts = []
+    raw_counts_dist = []
+    
+    for ribo_file in ribo_files:
+        print(f"Processing {os.path.basename(ribo_file)}")
+        
+        # Calculate RPKM for normalization
+        rpkm = calculate_rpkm(ribo_file, transcript_info['cds_coords'],
+                            transcript_info['cds_lengths'])
+        
+        # Get positions 50nt upstream of mAUGs
+        upstream_positions = {}
+        for tid in expressed_transcripts:
+            if tid in transcript_info['mAUG_positions']:
+                mAUG_pos = transcript_info['mAUG_positions'][tid]
+                # Ensure position is at least 50nt upstream
+                upstream_positions[tid] = max(1, mAUG_pos - 50)
+        
+        # Calculate counts at upstream positions
+        norm_counts, raw_counts = calculate_normalized_counts(
+            ribo_file, upstream_positions, rpkm, min_raw_count=1
+        )
+        
+        background_counts.extend(norm_counts.values())
+        raw_counts_dist.extend(raw_counts.values())
+        
+        print(f"Found {len(norm_counts)} normalized counts in this sample")
+        if len(norm_counts) > 0:
+            print(f"Range: {min(norm_counts.values()):.2f} - {max(norm_counts.values()):.2f}")
+    
+    if not background_counts:
+        print("WARNING: No background counts found!")
+        return 0.0
+    
+    # Calculate and return the 75th percentile (Q3)
+    background_cutoff = np.percentile(background_counts, 75)
+    
+    print("\nBackground calculation summary:")
+    print(f"Total background measurements: {len(background_counts)}")
+    print(f"Raw counts statistics:")
+    print(f"  Min: {min(raw_counts_dist)}")
+    print(f"  Max: {max(raw_counts_dist)}")
+    print(f"  Mean: {np.mean(raw_counts_dist):.2f}")
+    print(f"Normalized counts statistics:")
+    print(f"  Min: {min(background_counts):.2f}")
+    print(f"  Max: {max(background_counts):.2f}")
+    print(f"  Mean: {np.mean(background_counts):.2f}")
+    print(f"  Q3 (75th percentile): {background_cutoff:.2f}")
+    
+    return background_cutoff
+
 def main():
-    """Main analysis workflow with additional debugging"""
+    """Main analysis workflow with improved background calculation"""
     print("Starting translation analysis...")
     
-    # Create/load genome database
+    # Load database and transcript info (previous code remains the same)
     db = gffutils.FeatureDB(DB_PATH)
+    transcript_info = load_transcript_annotations(db)
     
-    # Load transcript annotations
-    print("\nLoading transcript structures...")
-    transcript_info = {
-        'exon_coords': defaultdict(list),
-        'cds_coords': defaultdict(list),
-        'exon_lengths': {},
-        'cds_lengths': {},
-        'mAUG_positions': {},
-        'transcript_ids': set()
-    }
-    
-    # Debug counters
-    processed_transcripts = 0
-    transcripts_with_exons = 0
-    transcripts_with_cds = 0
-    
-    # Load mRNA features
-    for transcript in db.features_of_type('mRNA'):
-        processed_transcripts += 1
-        transcript_id = transcript.id
-        transcript_info['transcript_ids'].add(transcript_id)
-        
-        if processed_transcripts <= 5:  # Print details for first 5 transcripts
-            print(f"\nProcessing transcript: {transcript_id}")
-            print(f"Strand: {transcript.strand}")
-        
-        # Get exons and CDS regions
-        exon_count = 0
-        for exon in db.children(transcript, featuretype='exon'):
-            exon_count += 1
-            transcript_info['exon_coords'][transcript_id].append((exon.start, exon.end))
-        
-        if exon_count > 0:
-            transcripts_with_exons += 1
-            
-        cds_count = 0
-        for cds in db.children(transcript, featuretype='CDS'):
-            cds_count += 1
-            transcript_info['cds_coords'][transcript_id].append((cds.start, cds.end))
-        
-        if cds_count > 0:
-            transcripts_with_cds += 1
-            
-        if processed_transcripts <= 5:
-            print(f"Exons: {exon_count}")
-            print(f"CDS regions: {cds_count}")
-        
-        # Calculate lengths
-        if transcript_id in transcript_info['exon_coords']:
-            transcript_info['exon_lengths'][transcript_id] = sum(
-                end - start + 1 for start, end in transcript_info['exon_coords'][transcript_id]
-            )
-        if transcript_id in transcript_info['cds_coords']:
-            transcript_info['cds_lengths'][transcript_id] = sum(
-                end - start + 1 for start, end in transcript_info['cds_coords'][transcript_id]
-            )
-            # Set mAUG position
-            if transcript.strand == '+':
-                transcript_info['mAUG_positions'][transcript_id] = min(start for start, _ in transcript_info['cds_coords'][transcript_id])
-            else:
-                transcript_info['mAUG_positions'][transcript_id] = max(end for _, end in transcript_info['cds_coords'][transcript_id])
-    
-    print(f"\nTranscript loading summary:")
-    print(f"Total transcripts processed: {processed_transcripts}")
-    print(f"Transcripts with exons: {transcripts_with_exons}")
-    print(f"Transcripts with CDS: {transcripts_with_cds}")
-    
-    # Get expressed transcripts (RPKM ≥ 1)
+    # Get expressed transcripts
     expressed_transcripts = get_expressed_transcripts(transcript_info)
     print(f"\nFound {len(expressed_transcripts)} expressed transcripts")
     
@@ -240,41 +243,29 @@ def main():
         print("No expressed transcripts found. Check RPKM calculations and BAM files.")
         return
     
-    # Calculate background from regions 50nt upstream of mAUGs
-    print("\nCalculating background counts...")
-    background_counts = []
+    # Calculate background cutoff with new function
+    background_cutoff = calculate_background_cutoff(
+        expressed_transcripts, transcript_info, RIBO_SEQ_FILES
+    )
     
-    for ribo_file in RIBO_SEQ_FILES:
-        print(f"Processing {os.path.basename(ribo_file)}")
-        rpkm = calculate_rpkm(ribo_file, transcript_info['cds_coords'],
-                            transcript_info['cds_lengths'])
-        
-        # Get positions 50nt upstream of mAUGs
-        upstream_positions = {
-            tid: pos - 50 for tid, pos in transcript_info['mAUG_positions'].items()
-            if tid in expressed_transcripts
-        }
-        
-        counts, _ = calculate_normalized_counts(ribo_file, upstream_positions, rpkm)
-        background_counts.extend(counts.values())
-    
-    if not background_counts:
-        print("No background counts found. Check upstream region calculations.")
-        return
-    
-    # Calculate Q3 cutoff
-    background_cutoff = np.percentile(background_counts, 75)
-    print(f"\nBackground cutoff (Q3): {background_cutoff:.2f}")
-    
-    # Save results
+    # Save results with more detailed information
     output_file = os.path.join(OUTPUT_DIR, "analysis_results.txt")
     print(f"\nSaving results to {output_file}")
     
     with open(output_file, "w") as f:
+        f.write("Analysis Results\n")
+        f.write("===============\n\n")
         f.write(f"Total transcripts analyzed: {len(transcript_info['transcript_ids'])}\n")
         f.write(f"Expressed transcripts (RPKM ≥ 1): {len(expressed_transcripts)}\n")
-        f.write(f"Background cutoff: {background_cutoff:.2f}\n")
-        f.write("\nExpressed transcript IDs:\n")
+        f.write(f"Background cutoff: {background_cutoff:.2f}\n\n")
+        f.write("Details:\n")
+        f.write("--------\n")
+        f.write("Criteria used:\n")
+        f.write("- RPKM ≥ 1 in all RNA-seq and Ribo-seq samples\n")
+        f.write("- Background calculated from 50nt upstream of mAUGs\n")
+        f.write("- Q3 (75th percentile) used as cutoff\n\n")
+        f.write("Expressed transcript IDs:\n")
+        f.write("----------------------\n")
         f.write("\n".join(sorted(expressed_transcripts)))
 
 if __name__ == "__main__":
