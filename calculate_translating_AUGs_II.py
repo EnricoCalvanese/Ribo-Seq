@@ -32,104 +32,70 @@ DB_PATH = os.path.join(OUTPUT_DIR, "genome.db")
 
 def get_chromosome_id(transcript_id):
     """Extract chromosome number from transcript ID and format for BAM"""
-    # Example: transcript:AT1G01010.1 -> Chr1
     try:
         if transcript_id.startswith('transcript:AT'):
             chr_num = transcript_id.split('G')[0][-1]
-            return f"Chr{chr_num}"
-    except:
-        return None
+            # Just return the number instead of "Chr{chr_num}"
+            return chr_num
+        print(f"Unmatched transcript ID format: {transcript_id}")
+    except Exception as e:
+        print(f"Error processing transcript ID {transcript_id}: {str(e)}")
     return None
-    
-def create_genome_db():
-    """Create SQLite database from genome annotation"""
-    print("\nProcessing genome annotation...")
-    
-    if os.path.exists(DB_PATH):
-        print("Using existing genome database")
-        return gffutils.FeatureDB(DB_PATH)
-    
-    print("Creating genome database (this may take a few minutes)...")
-    db = gffutils.create_db(
-        GENOME_GFF,
-        DB_PATH,
-        merge_strategy='create_unique',
-        sort_attribute_values=True,
-        disable_infer_genes=True
-    )
-    return db
-
-def load_transcript_annotations(db):
-    """Load transcript structures and identify 5' leaders"""
-    print("Loading transcript structures...")
-    
-    transcript_info = {
-        'exon_coords': defaultdict(list),
-        'cds_coords': defaultdict(list),
-        'exon_lengths': {},
-        'cds_lengths': {},
-        'mAUG_positions': {},
-        'five_prime_leaders': {},
-        'transcript_ids': set()
-    }
-    
-    for transcript in db.features_of_type('transcript'):
-        transcript_id = transcript.id
-        transcript_info['transcript_ids'].add(transcript_id)
-        
-        # Get exons and CDS regions
-        for exon in db.children(transcript, featuretype='exon'):
-            transcript_info['exon_coords'][transcript_id].append((exon.start, exon.end))
-        
-        cds_regions = list(db.children(transcript, featuretype='CDS'))
-        if cds_regions:
-            for cds in cds_regions:
-                transcript_info['cds_coords'][transcript_id].append((cds.start, cds.end))
-            
-            # Identify mAUG position
-            if transcript.strand == '+':
-                transcript_info['mAUG_positions'][transcript_id] = min(start for start, _ in transcript_info['cds_coords'][transcript_id])
-            else:
-                transcript_info['mAUG_positions'][transcript_id] = max(end for _, end in transcript_info['cds_coords'][transcript_id])
-    
-    # Calculate lengths
-    for transcript_id in transcript_info['transcript_ids']:
-        if transcript_id in transcript_info['exon_coords']:
-            transcript_info['exon_lengths'][transcript_id] = sum(
-                end - start + 1 for start, end in transcript_info['exon_coords'][transcript_id]
-            )
-        if transcript_id in transcript_info['cds_coords']:
-            transcript_info['cds_lengths'][transcript_id] = sum(
-                end - start + 1 for start, end in transcript_info['cds_coords'][transcript_id]
-            )
-    
-    return transcript_info
 
 def calculate_rpkm(bam_file, feature_coords, feature_lengths):
-    """Calculate RPKM values for genomic features with improved chromosome handling"""
+    """Calculate RPKM values for genomic features with debugging output"""
     rpkm_values = {}
     try:
         bam = pysam.AlignmentFile(bam_file, "rb")
         total_mapped_reads = float(sum(1 for read in bam.fetch() if not read.is_unmapped))
+        print(f"\nTotal mapped reads: {total_mapped_reads}")
         
-        # Get available chromosomes in BAM file
+        # Print available chromosomes in BAM
         valid_chromosomes = set(bam.references)
+        print(f"Valid chromosomes in BAM: {valid_chromosomes}")
+        
+        # Debug counter
+        processed = 0
+        matched_chroms = 0
         
         for transcript_id, regions in feature_coords.items():
+            processed += 1
+            if processed <= 5:  # Print first 5 transcripts for debugging
+                print(f"\nProcessing transcript: {transcript_id}")
+            
             count = 0
             chrom = get_chromosome_id(transcript_id)
             
+            if processed <= 5:
+                print(f"Mapped to chromosome: {chrom}")
+            
             if chrom and chrom in valid_chromosomes:
+                matched_chroms += 1
                 for start, end in regions:
                     try:
-                        count += sum(1 for read in bam.fetch(chrom, start-1, end)
-                                   if not read.is_unmapped)
-                    except ValueError:
+                        region_count = sum(1 for read in bam.fetch(chrom, start-1, end)
+                                         if not read.is_unmapped)
+                        count += region_count
+                        if processed <= 5:
+                            print(f"Region {start}-{end}: {region_count} reads")
+                    except ValueError as e:
+                        if processed <= 5:
+                            print(f"Error fetching region {start}-{end}: {str(e)}")
                         continue
                 
                 if transcript_id in feature_lengths and feature_lengths[transcript_id] > 0:
                     rpkm = (count * 1e9) / (total_mapped_reads * feature_lengths[transcript_id])
                     rpkm_values[transcript_id] = rpkm
+                    if processed <= 5:
+                        print(f"RPKM: {rpkm}")
+            
+            if processed % 1000 == 0:
+                print(f"Processed {processed} transcripts...")
+        
+        print(f"\nProcessing summary:")
+        print(f"Total transcripts processed: {processed}")
+        print(f"Chromosomes matched: {matched_chroms}")
+        print(f"Transcripts with RPKM values: {len(rpkm_values)}")
         
         bam.close()
     except Exception as e:
@@ -193,7 +159,7 @@ def calculate_normalized_counts(bam_file, positions, transcript_rpkm):
     return normalized_counts, raw_counts
 
 def main():
-    """Main analysis workflow"""
+    """Main analysis workflow with additional debugging"""
     print("Starting translation analysis...")
     
     # Create/load genome database
@@ -210,18 +176,42 @@ def main():
         'transcript_ids': set()
     }
     
+    # Debug counters
+    processed_transcripts = 0
+    transcripts_with_exons = 0
+    transcripts_with_cds = 0
+    
     # Load mRNA features
     for transcript in db.features_of_type('mRNA'):
+        processed_transcripts += 1
         transcript_id = transcript.id
         transcript_info['transcript_ids'].add(transcript_id)
         
+        if processed_transcripts <= 5:  # Print details for first 5 transcripts
+            print(f"\nProcessing transcript: {transcript_id}")
+            print(f"Strand: {transcript.strand}")
+        
         # Get exons and CDS regions
+        exon_count = 0
         for exon in db.children(transcript, featuretype='exon'):
+            exon_count += 1
             transcript_info['exon_coords'][transcript_id].append((exon.start, exon.end))
         
-        for cds in db.children(transcript, featuretype='CDS'):
-            transcript_info['cds_coords'][transcript_id].append((cds.start, cds.end))
+        if exon_count > 0:
+            transcripts_with_exons += 1
             
+        cds_count = 0
+        for cds in db.children(transcript, featuretype='CDS'):
+            cds_count += 1
+            transcript_info['cds_coords'][transcript_id].append((cds.start, cds.end))
+        
+        if cds_count > 0:
+            transcripts_with_cds += 1
+            
+        if processed_transcripts <= 5:
+            print(f"Exons: {exon_count}")
+            print(f"CDS regions: {cds_count}")
+        
         # Calculate lengths
         if transcript_id in transcript_info['exon_coords']:
             transcript_info['exon_lengths'][transcript_id] = sum(
@@ -237,7 +227,10 @@ def main():
             else:
                 transcript_info['mAUG_positions'][transcript_id] = max(end for _, end in transcript_info['cds_coords'][transcript_id])
     
-    print(f"\nLoaded {len(transcript_info['transcript_ids'])} transcripts")
+    print(f"\nTranscript loading summary:")
+    print(f"Total transcripts processed: {processed_transcripts}")
+    print(f"Transcripts with exons: {transcripts_with_exons}")
+    print(f"Transcripts with CDS: {transcripts_with_cds}")
     
     # Get expressed transcripts (RPKM ≥ 1)
     expressed_transcripts = get_expressed_transcripts(transcript_info)
