@@ -1,37 +1,50 @@
+# Standard library imports
+import os
+import re  # Added this import for regular expressions
+from collections import defaultdict
+from typing import List, Dict, Set, Tuple
+
+# Third-party imports
 import pysam
 import pandas as pd
 import numpy as np
-from collections import defaultdict
-import os
 import gffutils
-from typing import List, Dict, Set, Tuple
 
 def get_chromosome_from_transcript(transcript_id: str) -> str:
     """
-    Extracts chromosome number from Arabidopsis transcript ID.
+    Extracts chromosome number from an Arabidopsis transcript ID.
+    For example, 'AT1G05730.1' would return '1', and 'AT3G20430.1' would return '3'.
+    Also handles chloroplast ('C' -> 'Pt') and mitochondrial ('M' -> 'Mt') genes.
     
     Args:
-        transcript_id: TAIR-style transcript ID (e.g., 'AT1G01020.2')
+        transcript_id: TAIR-style transcript ID (e.g., 'AT1G05730.1' or 'transcript:AT1G05730.1')
         
     Returns:
-        Chromosome identifier (e.g., '1')
+        String representing the chromosome identifier, or None if no match is found
     """
-    # Remove 'transcript:' prefix if present
-    if transcript_id.startswith('transcript:'):
-        transcript_id = transcript_id[len('transcript:'):]
-    
-    # Extract chromosome number using regex
-    match = re.match(r'AT(\d|C|M)G', transcript_id)
-    if match:
-        chr_id = match.group(1)
-        # Convert chromosome identifiers
-        chr_map = {
-            'C': 'Pt',  # Chloroplast -> Plastid
-            'M': 'Mt'   # Mitochondria
-        }
-        return chr_map.get(chr_id, str(chr_id))
-    return None
-
+    try:
+        # Remove 'transcript:' prefix if present
+        if transcript_id.startswith('transcript:'):
+            transcript_id = transcript_id[len('transcript:'):]
+        
+        # Match the chromosome identifier after 'AT' and before 'G'
+        match = re.match(r'AT([0-9CM])G', transcript_id)
+        if match:
+            chr_id = match.group(1)
+            # Convert special chromosome identifiers
+            chr_map = {
+                'C': 'Pt',  # Chloroplast -> Plastid
+                'M': 'Mt'   # Mitochondria
+            }
+            return chr_map.get(chr_id, str(chr_id))
+        else:
+            print(f"Warning: Could not extract chromosome from transcript ID: {transcript_id}")
+            return None
+            
+    except Exception as e:
+        print(f"Error processing transcript ID {transcript_id}: {str(e)}")
+        return None
+        
 def load_uorf_positions(uorf_gff: str) -> Dict[str, List[Tuple[int, int]]]:
     """
     Reads and parses the uORF GFF file to identify transcripts containing upstream AUG codons.
@@ -76,19 +89,27 @@ def load_uorf_positions(uorf_gff: str) -> Dict[str, List[Tuple[int, int]]]:
 def get_transcript_positions(db: gffutils.FeatureDB, 
                            transcript_id: str) -> Tuple[str, int, int]:
     """
-    Gets chromosome and positions for a transcript.
+    Retrieves chromosome and genomic positions for a transcript.
+    This function handles the conversion between transcript IDs and chromosome coordinates.
     
     Args:
-        db: GFF database
-        transcript_id: Transcript identifier
+        db: GFF database connection
+        transcript_id: Full transcript identifier
         
     Returns:
-        Tuple of (chromosome, start, end)
+        Tuple of (chromosome, start, end) positions, or (None, None, None) if any error occurs
     """
     try:
+        # Get the transcript feature from the database
         feature = db[transcript_id]
+        
+        # Extract chromosome identifier
         chromosome = get_chromosome_from_transcript(transcript_id)
+        if chromosome is None:
+            return None, None, None
+            
         return chromosome, feature.start, feature.end
+        
     except Exception as e:
         print(f"Error getting positions for {transcript_id}: {str(e)}")
         return None, None, None
@@ -163,50 +184,61 @@ def count_upstream_reads(bam_file: str,
                         transcripts: Set[str],
                         upstream_distance: int = 50) -> Dict[str, int]:
     """
-    Counts reads in regions upstream of mAUGs using chromosome-level coordinates.
+    Counts the number of ribosome footprints in regions upstream of main AUG codons.
+    Uses chromosome-level coordinates for proper BAM file access.
     
     Args:
-        bam_file: Path to BAM file
-        db: GFF database
-        transcripts: Set of transcript IDs
-        upstream_distance: Distance upstream to analyze
+        bam_file: Path to the BAM file containing aligned reads
+        db: GFF database for coordinate lookup
+        transcripts: Set of transcript IDs to analyze
+        upstream_distance: Number of nucleotides upstream to analyze
         
     Returns:
-        Dictionary of read counts per transcript
+        Dictionary mapping transcript IDs to their upstream read counts
     """
     counts = defaultdict(int)
     processed = 0
     errors = 0
+    skipped = 0
     
     with pysam.AlignmentFile(bam_file, "rb") as bam:
         # Get available chromosomes in BAM file
         valid_chromosomes = set(bam.references)
-        print(f"\nValid chromosomes in BAM: {', '.join(valid_chromosomes)}")
+        print(f"\nValid chromosomes in BAM: {', '.join(sorted(valid_chromosomes))}")
         
         for transcript_id in transcripts:
             try:
                 # Get chromosome and positions
                 chr_id, start, end = get_transcript_positions(db, transcript_id)
                 
-                if chr_id not in valid_chromosomes:
+                # Skip if we couldn't get valid positions
+                if chr_id is None or chr_id not in valid_chromosomes:
+                    skipped += 1
+                    if skipped <= 5:  # Limit number of skip messages
+                        print(f"Skipping {transcript_id}: Invalid chromosome {chr_id}")
                     continue
                 
-                # Get the CDS start position (using transcript feature)
+                # Get the CDS features for this transcript
                 feature = db[transcript_id]
                 cds_features = list(db.children(feature, featuretype='CDS'))
                 
                 if not cds_features:
+                    skipped += 1
                     continue
-                    
-                # Get first CDS position (mAUG)
+                
+                # Find the first CDS (main AUG position)
                 first_cds = min(cds_features, key=lambda x: x.start)
                 cds_start = first_cds.start
                 
-                # Count reads in upstream window
+                # Count reads in the upstream window
+                read_count = 0
                 for read in bam.fetch(chr_id, 
                                     max(0, cds_start - upstream_distance),
                                     cds_start):
-                    counts[transcript_id] += 1
+                    read_count += 1
+                
+                if read_count > 0:
+                    counts[transcript_id] = read_count
                 
                 processed += 1
                 if processed % 100 == 0:
@@ -214,14 +246,18 @@ def count_upstream_reads(bam_file: str,
                     
             except Exception as e:
                 errors += 1
-                if errors <= 5:
+                if errors <= 5:  # Limit error messages
                     print(f"Error processing {transcript_id}: {str(e)}")
                 continue
     
-    print(f"\nSuccessfully processed {processed} transcripts")
-    print(f"Encountered errors with {errors} transcripts")
+    print(f"\nProcessing Summary:")
+    print(f"Successfully processed: {processed} transcripts")
+    print(f"Skipped: {skipped} transcripts")
+    print(f"Errors: {errors} transcripts")
+    print(f"Found reads in: {len(counts)} transcripts")
+    
     return counts
-       
+
 def clean_transcript_id(transcript_id: str) -> str:
     """
     Standardizes transcript ID format by removing prefixes and cleaning up the ID.
