@@ -159,7 +159,7 @@ def main():
     
     # Load previously detected transcripts
     detected_transcripts = set()
-    with open(os.path.join(BASE_DIR, "/systemPipeR/translating_AUGs/detected_transcripts.txt")) as f:
+    with open("/global/scratch/users/enricocalvane/riboseq/imb2/systemPipeR/translating_AUGs/detected_transcripts.txt") as f:
         for line in f:
             detected_transcripts.add(line.strip())
     
