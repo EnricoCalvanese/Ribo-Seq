@@ -1,89 +1,133 @@
+import pysam
 import pandas as pd
 import numpy as np
-import pysam
-import gffutils
 from collections import defaultdict
 import os
-import sys
+import gffutils
+from typing import List, Dict, Set, Tuple
 
-# Base directory structure and file paths remain the same
-BASE_DIR = "/global/scratch/users/enricocalvane/riboseq/imb2"
-GENOME_GFF = "/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gff3"
-UORF_GFF = os.path.join(BASE_DIR, "systemPipeR/uorf.gff")
-OUTPUT_DIR = os.path.join(BASE_DIR, "systemPipeR/translating_AUGs")
-DB_PATH = os.path.join(OUTPUT_DIR, "genome.db")
-
-def get_chromosome_id(transcript_id):
-    """Extract chromosome number from transcript ID and format for BAM"""
-    try:
-        if transcript_id.startswith('transcript:AT'):
-            chr_num = transcript_id.split('G')[0][-1]
-            # Just return the number instead of "Chr{chr_num}"
-            return chr_num
-        print(f"Unmatched transcript ID format: {transcript_id}")
-    except Exception as e:
-        print(f"Error processing transcript ID {transcript_id}: {str(e)}")
-    return None
-
-def calculate_rpkm(bam_file, feature_coords, feature_lengths):
-    """Calculate RPKM values for genomic features with debugging output"""
-    rpkm_values = {}
-    try:
-        bam = pysam.AlignmentFile(bam_file, "rb")
-        total_mapped_reads = float(sum(1 for read in bam.fetch() if not read.is_unmapped))
-        print(f"\nTotal mapped reads: {total_mapped_reads}")
-        
-        # Print available chromosomes in BAM
-        valid_chromosomes = set(bam.references)
-        print(f"Valid chromosomes in BAM: {valid_chromosomes}")
-        
-        # Debug counter
-        processed = 0
-        matched_chroms = 0
-        
-        for transcript_id, regions in feature_coords.items():
-            processed += 1
-            if processed <= 5:  # Print first 5 transcripts for debugging
-                print(f"\nProcessing transcript: {transcript_id}")
-            
-            count = 0
-            chrom = get_chromosome_id(transcript_id)
-            
-            if processed <= 5:
-                print(f"Mapped to chromosome: {chrom}")
-            
-            if chrom and chrom in valid_chromosomes:
-                matched_chroms += 1
-                for start, end in regions:
-                    try:
-                        region_count = sum(1 for read in bam.fetch(chrom, start-1, end)
-                                         if not read.is_unmapped)
-                        count += region_count
-                        if processed <= 5:
-                            print(f"Region {start}-{end}: {region_count} reads")
-                    except ValueError as e:
-                        if processed <= 5:
-                            print(f"Error fetching region {start}-{end}: {str(e)}")
-                        continue
-                
-                if transcript_id in feature_lengths and feature_lengths[transcript_id] > 0:
-                    rpkm = (count * 1e9) / (total_mapped_reads * feature_lengths[transcript_id])
-                    rpkm_values[transcript_id] = rpkm
-                    if processed <= 5:
-                        print(f"RPKM: {rpkm}")
-            
-            if processed % 1000 == 0:
-                print(f"Processed {processed} transcripts...")
-        
-        print(f"\nProcessing summary:")
-        print(f"Total transcripts processed: {processed}")
-        print(f"Chromosomes matched: {matched_chroms}")
-        print(f"Transcripts with RPKM values: {len(rpkm_values)}")
-        
-        bam.close()
-    except Exception as e:
-        print(f"Error processing {bam_file}: {str(e)}")
+def examine_bam_references(bam_file: str, num_examples: int = 5) -> Set[str]:
+    """
+    Examines the reference names in a BAM file and prints examples.
     
-    return rpkm_values
+    Args:
+        bam_file: Path to BAM file
+        num_examples: Number of example references to print
+        
+    Returns:
+        Set of all reference names in the BAM file
+    """
+    with pysam.AlignmentFile(bam_file, "rb") as bam:
+        references = set(bam.references)
+        print(f"\nFound {len(references)} unique references in BAM file")
+        print("Example reference names:")
+        for ref in list(references)[:num_examples]:
+            print(f"  {ref}")
+    return references
 
-# [Rest of the code remains the same as in the previous artifact]
+def examine_transcript_ids(transcripts: Set[str], num_examples: int = 5) -> None:
+    """
+    Prints examples of transcript IDs from the GFF database.
+    
+    Args:
+        transcripts: Set of transcript IDs
+        num_examples: Number of examples to print
+    """
+    print("\nExample transcript IDs from GFF:")
+    for transcript_id in list(transcripts)[:num_examples]:
+        print(f"  {transcript_id}")
+
+def clean_transcript_id(transcript_id: str) -> str:
+    """
+    Standardizes transcript ID format by removing prefixes and cleaning up the ID.
+    
+    Args:
+        transcript_id: Raw transcript ID
+        
+    Returns:
+        Cleaned transcript ID
+    """
+    # First, print the original ID for debugging
+    print(f"Cleaning transcript ID: {transcript_id}")
+    
+    # Remove common prefixes
+    prefixes_to_remove = ['transcript:', 'gene:', 'mRNA:']
+    cleaned_id = transcript_id
+    for prefix in prefixes_to_remove:
+        if cleaned_id.startswith(prefix):
+            cleaned_id = cleaned_id[len(prefix):]
+    
+    # Print the cleaned ID
+    print(f"Cleaned to: {cleaned_id}")
+    return cleaned_id
+
+def verify_bam_references(bam_file: str, transcripts: Set[str]) -> Set[str]:
+    """
+    Verifies which transcripts are present in the BAM file.
+    Now includes detailed debugging information.
+    
+    Args:
+        bam_file: Path to BAM file
+        transcripts: Set of transcript IDs to verify
+        
+    Returns:
+        Set of valid transcript IDs
+    """
+    valid_transcripts = set()
+    
+    with pysam.AlignmentFile(bam_file, "rb") as bam:
+        bam_references = set(bam.references)
+        print(f"\nBAM file contains {len(bam_references)} references")
+        
+        # Print some example BAM references
+        print("\nExample BAM references:")
+        for ref in list(bam_references)[:5]:
+            print(f"  {ref}")
+        
+        # Check each transcript
+        print("\nChecking transcript IDs against BAM references...")
+        for transcript_id in transcripts:
+            clean_id = clean_transcript_id(transcript_id)
+            if clean_id in bam_references:
+                valid_transcripts.add(clean_id)
+            elif len(valid_transcripts) == 0:  # Only print first few failures
+                print(f"Failed to find: {clean_id}")
+    
+    return valid_transcripts
+
+def main():
+    # File paths
+    BASE_DIR = "/global/scratch/users/enricocalvane/riboseq/imb2"
+    GFF3_FILE = "/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gff3"
+    UORF_GFF = os.path.join(BASE_DIR, "systemPipeR/uorf.gff")
+    
+    RIBO_SEQ_FILES = [
+        os.path.join(BASE_DIR, "unique_reads/LZT103-1_uniq_sort.bam"),
+        os.path.join(BASE_DIR, "unique_reads/LZT103-2_uniq_sort.bam"),
+        os.path.join(BASE_DIR, "unique_reads/LZT104-1_uniq_sort.bam"),
+        os.path.join(BASE_DIR, "unique_reads/LZT104-2_uniq_sort.bam")
+    ]
+    
+    # Load GFF database
+    print("Loading GFF database...")
+    db = gffutils.FeatureDB(GFF3_FILE + '.db')
+    
+    # Examine first BAM file to understand reference format
+    print("\nExamining first BAM file format...")
+    bam_references = examine_bam_references(RIBO_SEQ_FILES[0])
+    
+    # Process a few transcripts to understand the format differences
+    print("\nProcessing sample transcripts...")
+    sample_transcripts = set(list(db.features_of_type('mRNA'))[:5])
+    examine_transcript_ids(sample_transcripts)
+    
+    # Print full processing information for debugging
+    print("\nFull processing information:")
+    for transcript in sample_transcripts:
+        print(f"\nOriginal transcript ID: {transcript.id}")
+        cleaned_id = clean_transcript_id(transcript.id)
+        print(f"Cleaned ID: {cleaned_id}")
+        print(f"Found in BAM references: {cleaned_id in bam_references}")
+
+if __name__ == "__main__":
+    main()
