@@ -91,32 +91,28 @@ def count_upstream_reads(bam_file: str,
                         upstream_distance: int = 50) -> Dict[str, int]:
     """
     Count reads in regions upstream of mAUGs.
-    
+
     Args:
         bam_file: Path to BAM file
         transcripts: Set of eligible transcript IDs
         upstream_distance: Distance upstream of mAUG to analyze
-        
+
     Returns:
         Dictionary mapping transcript IDs to read counts
     """
     counts = defaultdict(int)
-    
+
     with pysam.AlignmentFile(bam_file, "rb") as bam:
         for transcript_id in transcripts:
             try:
-                # Get CDS start (mAUG position)
-                transcript = next(bam.find(transcript_id))
-                cds_start = transcript.reference_start
-                
-                # Count reads in upstream region
-                for read in bam.fetch(transcript_id,
-                                    cds_start - upstream_distance,
-                                    cds_start):
-                    counts[transcript_id] += 1
-            except (StopIteration, ValueError):
+                # Fetch the entire transcript
+                for read in bam.fetch(transcript_id):
+                    # Ensure read is within the upstream region
+                    if read.reference_start < upstream_distance:
+                        counts[transcript_id] += 1
+            except ValueError:
                 continue
-                
+
     return counts
 
 def normalize_counts(counts: Dict[str, int],
