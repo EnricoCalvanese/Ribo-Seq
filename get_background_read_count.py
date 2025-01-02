@@ -111,35 +111,32 @@ def get_eligible_transcripts(leader_lengths: Dict[str, int],
     
     print(f"Found {len(eligible)} eligible transcripts out of {len(leader_lengths)} total")
     return eligible
-
+                               
 def count_upstream_reads(bam_file: str,
                         transcripts: Set[str],
                         upstream_distance: int = 50) -> Dict[str, int]:
     """
-    Counts the number of ribosome footprints in regions upstream of main AUG codons.
-    
-    Args:
-        bam_file: Path to the BAM file containing aligned reads
-        transcripts: Set of eligible transcript IDs
-        upstream_distance: Number of nucleotides upstream to analyze (default: 50)
-        
-    Returns:
-        Dictionary mapping transcript IDs to their upstream read counts
+    Counts reads in regions upstream of mAUGs with improved error handling.
     """
     counts = defaultdict(int)
     processed = 0
+    errors = 0
     
     with pysam.AlignmentFile(bam_file, "rb") as bam:
-        for transcript_id in transcripts:
+        # First verify which transcripts are valid in this BAM file
+        valid_transcripts = verify_bam_references(bam_file, transcripts)
+        
+        for transcript_id in valid_transcripts:
             try:
-                # Get all reads mapping to this transcript
-                for read in bam.fetch(transcript_id):
-                    # We'll consider the start of the first read as our reference point
-                    # In a real analysis, you might want to use the annotated CDS start
-                    if processed == 0:
-                        cds_start = read.reference_start
-                        
-                    # Count reads in the upstream window
+                reads = list(bam.fetch(transcript_id))
+                if not reads:
+                    continue
+                
+                # Find the position of the first read as reference
+                cds_start = reads[0].reference_start
+                
+                # Count reads in upstream window
+                for read in reads:
                     if cds_start - upstream_distance <= read.reference_start < cds_start:
                         counts[transcript_id] += 1
                 
@@ -148,10 +145,63 @@ def count_upstream_reads(bam_file: str,
                     print(f"Processed {processed} transcripts...")
                     
             except ValueError as e:
-                print(f"Warning: Could not process transcript {transcript_id}: {str(e)}")
+                errors += 1
+                if errors <= 5:  # Limit the number of error messages
+                    print(f"Warning: Could not process transcript {transcript_id}: {str(e)}")
                 continue
     
+    print(f"Successfully processed {processed} transcripts")
+    print(f"Encountered errors with {errors} transcripts")
     return counts
+                      
+def clean_transcript_id(transcript_id: str) -> str:
+    """
+    Standardizes transcript ID format by removing prefixes and cleaning up the ID.
+    
+    For example:
+    - "transcript:AT5G53480.1" becomes "AT5G53480.1"
+    - "AT5G53480.1" remains "AT5G53480.1"
+    
+    Args:
+        transcript_id: Raw transcript ID from GFF or BAM file
+        
+    Returns:
+        Cleaned transcript ID
+    """
+    # Remove common prefixes
+    prefixes_to_remove = ['transcript:', 'gene:', 'mRNA:']
+    cleaned_id = transcript_id
+    for prefix in prefixes_to_remove:
+        if cleaned_id.startswith(prefix):
+            cleaned_id = cleaned_id[len(prefix):]
+    return cleaned_id
+
+def verify_bam_references(bam_file: str, transcripts: Set[str]) -> Set[str]:
+    """
+    Verifies which transcripts are actually present in the BAM file and
+    returns the set of valid transcripts.
+    
+    Args:
+        bam_file: Path to BAM file
+        transcripts: Set of transcript IDs to verify
+        
+    Returns:
+        Set of transcript IDs that exist in the BAM file
+    """
+    valid_transcripts = set()
+    
+    with pysam.AlignmentFile(bam_file, "rb") as bam:
+        # Get all reference names from BAM file
+        bam_references = set(bam.references)
+        
+        # Check each transcript
+        for transcript_id in transcripts:
+            clean_id = clean_transcript_id(transcript_id)
+            if clean_id in bam_references:
+                valid_transcripts.add(clean_id)
+    
+    print(f"Found {len(valid_transcripts)} valid transcripts in BAM file")
+    return valid_transcripts
 
 def normalize_counts(counts: Dict[str, int],
                     total_reads: int,
@@ -178,32 +228,34 @@ def normalize_counts(counts: Dict[str, int],
 
 def calculate_statistics(normalized_counts: Dict[str, float]) -> Dict[str, float]:
     """
-    Calculates various statistical measures from the normalized counts.
-    
-    Args:
-        normalized_counts: Dictionary of normalized read counts
-        
-    Returns:
-        Dictionary containing statistical measures (Q3, median, mean)
+    Calculates statistics with improved error handling and validation.
     """
-    stats = {}
+    stats = {'q3': None, 'median': None, 'mean': None}
+    
+    if not normalized_counts:
+        print("Warning: No normalized counts available for statistics calculation")
+        return stats
+    
     counts_list = list(normalized_counts.values())
     
     if not counts_list:
-        stats['q3'] = None
-        stats['median'] = None
-        stats['mean'] = None
+        print("Warning: Empty counts list")
         return stats
     
     try:
-        stats['q3'] = float(np.percentile(counts_list, 75))
-        stats['median'] = float(np.median(counts_list))
-        stats['mean'] = float(np.mean(counts_list))
+        # Calculate statistics only if we have valid data
+        if len(counts_list) > 0:
+            stats['q3'] = float(np.percentile(counts_list, 75))
+            stats['median'] = float(np.median(counts_list))
+            stats['mean'] = float(np.mean(counts_list))
+            
+            # Validate results
+            if not all(isinstance(v, (int, float)) for v in [stats['q3'], stats['median'], stats['mean']]):
+                print("Warning: Invalid statistics calculated")
+                stats = {'q3': None, 'median': None, 'mean': None}
     except Exception as e:
         print(f"Warning: Error calculating statistics: {str(e)}")
-        stats['q3'] = None
-        stats['median'] = None
-        stats['mean'] = None
+        stats = {'q3': None, 'median': None, 'mean': None}
     
     return stats
 
@@ -265,11 +317,15 @@ def main():
         sample_result.update(stats)
         results.append(sample_result)
         
-        # Print statistics
+         # Print statistics with improved formatting
         print(f"\nStatistics for {os.path.basename(bam_file)}:")
-        print(f"Q3: {stats['q3']:.2f if stats['q3'] is not None else 'N/A'}")
-        print(f"Median: {stats['median']:.2f if stats['median'] is not None else 'N/A'}")
-        print(f"Mean: {stats['mean']:.2f if stats['mean'] is not None else 'N/A'}")
+        for stat_name in ['q3', 'median', 'mean']:
+            stat_value = stats[stat_name]
+            if stat_value is not None:
+                print(f"{stat_name.capitalize()}: {stat_value:.2f}")
+            else:
+                print(f"{stat_name.capitalize()}: N/A")
+
     
     # Save results
     output_file = os.path.join(BASE_DIR, "systemPipeR/maug_upstream_analysis.tsv")
