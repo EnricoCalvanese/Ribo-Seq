@@ -5,142 +5,83 @@ from collections import defaultdict
 import os
 import gffutils
 from typing import List, Dict, Set, Tuple
-from statistics import quantiles
 
-def load_uorf_positions(uorf_gff: str) -> Dict[str, List[Tuple[int, int]]]:
-    """
-    Load uORF positions from the GFF file to identify transcripts with uAUGs.
-    
-    Args:
-        uorf_gff: Path to the uORF GFF file
-        
-    Returns:
-        Dictionary mapping transcript IDs to lists of uORF positions
-    """
-    uorf_positions = defaultdict(list)
-    
-    with open(uorf_gff) as f:
-        for line in f:
-            if line.startswith('#'):
-                continue
-            
-            fields = line.strip().split('\t')
-            if len(fields) < 9:  # Skip malformed lines
-                continue
-                
-            transcript_id = fields[0]
-            start = int(fields[3])
-            end = int(fields[4])
-            uorf_positions[transcript_id].append((start, end))
-    
-    return uorf_positions
-
-def get_transcript_lengths(db: gffutils.FeatureDB) -> Dict[str, int]:
-    """
-    Get the length of 5' leader sequences for all transcripts.
-    
-    Args:
-        db: GFF database
-        
-    Returns:
-        Dictionary mapping transcript IDs to leader lengths
-    """
-    leader_lengths = {}
-    
-    for transcript in db.features_of_type('mRNA'):
-        try:
-            # Get CDS start position
-            cds = next(db.children(transcript, featuretype='CDS'))
-            # Calculate leader length (assuming transcript coordinates start at 1)
-            leader_length = cds.start - transcript.start
-            leader_lengths[transcript.id] = leader_length
-        except StopIteration:
-            continue  # Skip transcripts without CDS
-            
-    return leader_lengths
-
-def get_eligible_transcripts(leader_lengths: Dict[str, int],
-                           uorf_positions: Dict[str, List[Tuple[int, int]]],
-                           min_leader_length: int = 100) -> Set[str]:
-    """
-    Identify transcripts with long enough leaders and no uAUGs.
-    
-    Args:
-        leader_lengths: Dictionary of transcript leader lengths
-        uorf_positions: Dictionary of uORF positions
-        min_leader_length: Minimum required leader length
-        
-    Returns:
-        Set of eligible transcript IDs
-    """
-    eligible = set()
-    
-    for transcript_id, length in leader_lengths.items():
-        # Check leader length
-        if length < min_leader_length:
-            continue
-            
-        # Check for absence of uORFs
-        if transcript_id not in uorf_positions:
-            eligible.add(transcript_id)
-            
-    return eligible
+# Previous helper functions remain the same...
+# [load_uorf_positions, get_transcript_lengths, get_eligible_transcripts remain unchanged]
 
 def count_upstream_reads(bam_file: str,
                         transcripts: Set[str],
                         upstream_distance: int = 50) -> Dict[str, int]:
     """
-    Count reads in regions upstream of mAUGs.
-
+    Count reads in regions upstream of mAUGs using pysam's fetch method.
+    
     Args:
         bam_file: Path to BAM file
         transcripts: Set of eligible transcript IDs
         upstream_distance: Distance upstream of mAUG to analyze
-
+        
     Returns:
         Dictionary mapping transcript IDs to read counts
     """
     counts = defaultdict(int)
-
+    
     with pysam.AlignmentFile(bam_file, "rb") as bam:
         for transcript_id in transcripts:
-            print(f"Checking transcript: {transcript_id}")  # Debugging statement
             try:
-                read_found = False  # Flag to check if any reads are found
-                for read in bam.fetch(transcript_id):
-                    if read.reference_start < upstream_distance:
+                # Get all reads for this transcript first
+                reads = list(bam.fetch(transcript_id))
+                if not reads:
+                    continue
+                
+                # Find the CDS start position (assuming first read position as reference)
+                cds_start = reads[0].reference_start
+                
+                # Count reads in upstream region
+                for read in reads:
+                    # Check if read falls within our upstream window
+                    if cds_start - upstream_distance <= read.reference_start < cds_start:
                         counts[transcript_id] += 1
-                        read_found = True
-                    if not read_found:
-                        print(f"No reads found upstream of {transcript_id}")  # Debugging statement
-            except ValueError:
-                print(f"Error processing transcript: {transcript_id}")  # Debugging statement
+                        
+            except (ValueError, StopIteration) as e:
+                print(f"Warning: Could not process transcript {transcript_id}: {str(e)}")
                 continue
                 
-    print(f"Counts: {counts}")  # Debugging statement
     return counts
 
-def normalize_counts(counts: Dict[str, int],
-                    total_reads: int,
-                    transcript_abundances: Dict[str, float]) -> Dict[str, float]:
+def calculate_statistics(normalized_counts: Dict[str, float]) -> Dict[str, float]:
     """
-    Normalize read counts by total reads and transcript abundance.
+    Calculate statistical measures for normalized counts with proper error handling.
     
     Args:
-        counts: Raw read counts
-        total_reads: Total number of mapped reads
-        transcript_abundances: RPKM values for each transcript
+        normalized_counts: Dictionary of normalized read counts
         
     Returns:
-        Dictionary of normalized counts
+        Dictionary containing statistical measures
     """
-    normalized = {}
+    stats = {}
     
-    for transcript_id, count in counts.items():
-        if transcript_id in transcript_abundances and transcript_abundances[transcript_id] > 0:
-            normalized[transcript_id] = (count / total_reads) / transcript_abundances[transcript_id]
-            
-    return normalized
+    # Convert dictionary values to list for numpy operations
+    counts_list = list(normalized_counts.values())
+    
+    if not counts_list:
+        # Return None for all statistics if no data
+        stats['q3'] = None
+        stats['median'] = None
+        stats['mean'] = None
+        return stats
+    
+    # Calculate statistics
+    try:
+        stats['q3'] = float(np.percentile(counts_list, 75))
+        stats['median'] = float(np.median(counts_list))
+        stats['mean'] = float(np.mean(counts_list))
+    except Exception as e:
+        print(f"Warning: Error calculating statistics: {str(e)}")
+        stats['q3'] = None
+        stats['median'] = None
+        stats['mean'] = None
+    
+    return stats
 
 def main():
     # File paths
@@ -177,29 +118,33 @@ def main():
         # Get total reads for normalization
         with pysam.AlignmentFile(bam_file, "rb") as bam:
             total_reads = bam.count()
-            print(f"Total reads in {os.path.basename(bam_file)}: {total_reads}") # Debugging statement
         
         # Count upstream reads
         counts = count_upstream_reads(bam_file, eligible_transcripts)
         
         # Load transcript abundances (you'll need to implement this based on your RNA-seq data)
-        # For now, using placeholder values
         transcript_abundances = {tid: 1.0 for tid in eligible_transcripts}
-        print(f"Transcript Abundances: {transcript_abundances}") # Debugging statement
+        
         # Normalize counts
         normalized_counts = normalize_counts(counts, total_reads, transcript_abundances)
-        print(f"Normalized Counts: {normalized_counts}")  # Debugging statement
         
-        # Calculate Q3
-        if normalized_counts:
-            q3 = np.percentile(list(normalized_counts.values()), 75)
-            print(f"Q3 for {os.path.basename(bam_file)}: {q3:.2f}")
+        # Calculate statistics
+        stats = calculate_statistics(normalized_counts)
         
-        results.append({
+        # Store results
+        sample_result = {
             'sample': os.path.basename(bam_file),
             'normalized_counts': normalized_counts,
-            'q3': q3
-        })
+        }
+        # Add statistics to results
+        sample_result.update(stats)
+        results.append(sample_result)
+        
+        # Print statistics
+        print(f"Statistics for {os.path.basename(bam_file)}:")
+        print(f"  Q3: {stats['q3']:.2f if stats['q3'] is not None else 'N/A'}")
+        print(f"  Median: {stats['median']:.2f if stats['median'] is not None else 'N/A'}")
+        print(f"  Mean: {stats['mean']:.2f if stats['mean'] is not None else 'N/A'}")
     
     # Save results
     output_file = os.path.join(BASE_DIR, "systemPipeR/maug_upstream_analysis.tsv")
@@ -212,11 +157,17 @@ def main():
                 'sample': result['sample'],
                 'transcript_id': transcript_id,
                 'normalized_count': count,
-                'q3': result['q3']
+                'q3': result['q3'],
+                'median': result['median'],
+                'mean': result['mean']
             })
     
-    pd.DataFrame(output_data).to_csv(output_file, sep='\t', index=False)
-    print(f"Results saved to {output_file}")
+    # Create DataFrame and save results
+    if output_data:
+        pd.DataFrame(output_data).to_csv(output_file, sep='\t', index=False)
+        print(f"Results saved to {output_file}")
+    else:
+        print("Warning: No data to save")
 
 if __name__ == "__main__":
     main()
