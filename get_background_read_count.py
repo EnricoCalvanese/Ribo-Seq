@@ -102,7 +102,7 @@ def count_upstream_reads(bam_file: str,
     """
     counts = defaultdict(int)
 
-       with pysam.AlignmentFile(bam_file, "rb") as bam:
+    with pysam.AlignmentFile(bam_file, "rb") as bam:
         for transcript_id in transcripts:
             print(f"Checking transcript: {transcript_id}")  # Debugging statement
             try:
