@@ -102,17 +102,22 @@ def count_upstream_reads(bam_file: str,
     """
     counts = defaultdict(int)
 
-    with pysam.AlignmentFile(bam_file, "rb") as bam:
+       with pysam.AlignmentFile(bam_file, "rb") as bam:
         for transcript_id in transcripts:
+            print(f"Checking transcript: {transcript_id}")  # Debugging statement
             try:
-                # Fetch the entire transcript
+                read_found = False  # Flag to check if any reads are found
                 for read in bam.fetch(transcript_id):
-                    # Ensure read is within the upstream region
                     if read.reference_start < upstream_distance:
                         counts[transcript_id] += 1
+                        read_found = True
+                if not read_found:
+                    print(f"No reads found upstream of {transcript_id}")  # Debugging statement
             except ValueError:
+                print(f"Error processing transcript: {transcript_id}")  # Debugging statement
                 continue
-
+                
+    print(f"Counts: {counts}")  # Debugging statement
     return counts
 
 def normalize_counts(counts: Dict[str, int],
@@ -172,6 +177,7 @@ def main():
         # Get total reads for normalization
         with pysam.AlignmentFile(bam_file, "rb") as bam:
             total_reads = bam.count()
+            print(f"Total reads in {os.path.basename(bam_file)}: {total_reads}") # Debugging statement
         
         # Count upstream reads
         counts = count_upstream_reads(bam_file, eligible_transcripts)
@@ -179,9 +185,10 @@ def main():
         # Load transcript abundances (you'll need to implement this based on your RNA-seq data)
         # For now, using placeholder values
         transcript_abundances = {tid: 1.0 for tid in eligible_transcripts}
-        
+        print(f"Transcript Abundances: {transcript_abundances}") # Debugging statement
         # Normalize counts
         normalized_counts = normalize_counts(counts, total_reads, transcript_abundances)
+        print(f"Normalized Counts: {normalized_counts}")  # Debugging statement
         
         # Calculate Q3
         if normalized_counts:
