@@ -111,8 +111,8 @@ def count_upstream_reads(bam_file: str,
                     if read.reference_start < upstream_distance:
                         counts[transcript_id] += 1
                         read_found = True
-                if not read_found:
-                    print(f"No reads found upstream of {transcript_id}")  # Debugging statement
+                    if not read_found:
+                        print(f"No reads found upstream of {transcript_id}")  # Debugging statement
             except ValueError:
                 print(f"Error processing transcript: {transcript_id}")  # Debugging statement
                 continue
