@@ -125,7 +125,7 @@ def process_transcript_list(transcript_file, fasta_file, gtf_file, output_file):
 
 def main():
     # Base paths
-    base_dir = "/global/scratch/users/enricocalvane/riboseq/imb2/unique_reads"
+    base_dir = "/global/scratch/users/enricocalvane/riboseq/imb2"
     ref_dir = "/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference"
     
     # Reference files
@@ -133,21 +133,21 @@ def main():
     fasta_file = os.path.join(ref_dir, "Arabidopsis_thaliana.TAIR10.dna.toplevel.fa")
     
     # Create output directory if it doesn't exist
-    output_dir = os.path.join(base_dir, "leader_sequences")
+    output_dir = os.path.join(base_dir, "unique_reads/leader_sequences")
     os.makedirs(output_dir, exist_ok=True)
     
     # Input files for active uORFs
     uorf_files = {
-        "down": "active_uORF_transcripts_TE-down.txt",
-        "up": "active_uORF_transcripts_TE-up.txt",
-        "nc": "active_uORF_transcripts_TE-nc.txt"
+        "down": "systemPipeR/uORF_counts/AllGenes/active_uORF_transcripts_TE-down.txt",
+        "up": "systemPipeR/uORF_counts/AllGenes/active_uORF_transcripts_TE-up.txt",
+        "nc": "systemPipeR/uORF_counts/AllGenes/active_uORF_transcripts_TE-nc.txt"
     }
     
     # Input files for translatome
     translatome_files = {
-        "down": "TEdown_genes.txt",
-        "up": "TEup_genes.txt",
-        "nc": "TEnc_genes.txt"
+        "down": "unique_reads/TEdown_genes.txt",
+        "up": "unique_reads/TEup_genes.txt",
+        "nc": "unique_reads/TEnc_genes.txt"
     }
     
     print("Processing active uORF sequences...")
