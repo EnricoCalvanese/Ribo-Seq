@@ -16,22 +16,39 @@ logging.basicConfig(
     ]
 )
 
-def get_transcript_ids_for_gene(gene_id, db):
-    """Get all transcript IDs associated with a gene ID."""
-    base_gene_id = gene_id.split('.')[0]
+def get_transcript_ids_for_gene(gene_id, db, is_translatome=False):
+    """
+    Get all transcript IDs associated with a gene ID.
+    
+    Parameters:
+        gene_id: The input ID (could be gene or transcript ID)
+        db: The gffutils database
+        is_translatome: Boolean indicating if this is from translatome files (gene IDs without versions)
+    """
     transcript_ids = []
     try:
-        # First try exact match
-        for feature in db.children(gene_id, featuretype='transcript'):
-            transcript_ids.append(feature.id)
-        
-        # If no exact match, try base gene ID
-        if not transcript_ids:
+        if is_translatome:
+            # For translatome files (e.g., AT3G06390), look for all transcript versions
             for feature in db.features_of_type('transcript', order_by='start'):
-                if feature.id.startswith(base_gene_id):
+                if feature.id.startswith(f"transcript:{gene_id}."):
                     transcript_ids.append(feature.id)
+        else:
+            # For uORF files (e.g., AT1G02010.5), try exact match with transcript: prefix
+            transcript_id = f"transcript:{gene_id}"
+            try:
+                if db[transcript_id]:
+                    transcript_ids.append(transcript_id)
+            except:
+                # If exact match fails, try finding any transcript version
+                base_gene_id = gene_id.split('.')[0]
+                for feature in db.features_of_type('transcript', order_by='start'):
+                    if feature.id.startswith(f"transcript:{base_gene_id}."):
+                        transcript_ids.append(feature.id)
+    
+        if not transcript_ids:
+            logging.warning(f"No transcripts found for {gene_id}")
     except Exception as e:
-        logging.error(f"Error finding transcripts for gene {gene_id}: {str(e)}")
+        logging.error(f"Error finding transcripts for {gene_id}: {str(e)}")
     
     return transcript_ids
 
@@ -89,11 +106,14 @@ def process_single_category(input_file, fasta_file, gtf_file, output_file, db_fi
         if input_file is None:
             transcripts = [f.id for f in db.features_of_type('transcript')]
         else:
+            # Determine if this is a translatome file based on the path
+            is_translatome = 'unique_reads/TE' in input_file
+            
             with open(input_file) as f:
                 input_ids = [line.strip() for line in f]
                 transcripts = []
                 for input_id in input_ids:
-                    trans_ids = get_transcript_ids_for_gene(input_id, db)
+                    trans_ids = get_transcript_ids_for_gene(input_id, db, is_translatome)
                     if trans_ids:
                         transcripts.extend(trans_ids)
                     else:
