@@ -11,7 +11,6 @@
 #SBATCH --output=meme_fimo_%A_%a.out
 #SBATCH --error=meme_fimo_%A_%a.err
 #SBATCH --array=2-6  # Starting from 2 since MEME and uorf_up are already done
-#SBATCH --mem=128G  # Increased memory significantly
 
 # Set base directory
 BASE_DIR="/global/scratch/users/enricocalvane/riboseq/imb2/FIMO"
