@@ -37,15 +37,24 @@ def setup_output_directory():
 def analyze_single_sequence(sequence_record):
     """
     Analyze a single RNA sequence. This function will be parallelized.
+    
+    The function calculates several structural properties:
+    1. Minimum free energy and structure
+    2. Base pair probabilities from partition function
+    3. Ensemble diversity (a measure of structural flexibility)
     """
     rna_seq = str(sequence_record.seq).replace('T', 'U')
+    seq_length = len(rna_seq)
     
     # Basic structure prediction
     (structure, mfe) = RNA.fold(rna_seq)
     
-    # Calculate ensemble diversity
-    RNA.pf_fold(rna_seq)
-    ensemble_diversity = RNA.mean_bp_distance()
+    # Calculate partition function and related metrics
+    # pf_fold returns a tuple of (structure, ensemble_energy)
+    (_, ensemble_energy) = RNA.pf_fold(rna_seq)
+    
+    # Now we can get the mean base pair distance with the correct length parameter
+    ensemble_diversity = RNA.mean_bp_distance(seq_length)
     
     # Get base pair probabilities
     bpp = RNA.bp_get()
@@ -60,16 +69,17 @@ def analyze_single_sequence(sequence_record):
     
     return {
         'sequence_id': sequence_record.id,
-        'length': len(rna_seq),
+        'length': seq_length,
         'mfe': mfe,
+        'ensemble_energy': ensemble_energy,
         'ensemble_diversity': ensemble_diversity,
-        'stem_density': stem_count / len(rna_seq),
-        'loop_density': loop_count / len(rna_seq),
-        'structural_complexity': ensemble_diversity / len(rna_seq),
+        'stem_density': stem_count / seq_length,
+        'loop_density': loop_count / seq_length,
+        'structural_complexity': ensemble_diversity / seq_length,
         'avg_bp_probability': avg_bp_probability,
         **motifs  # Unpack motif counts
     }
-
+    
 def find_structural_motifs(structure):
     """
     Identify regulatory structural motifs using pattern matching
