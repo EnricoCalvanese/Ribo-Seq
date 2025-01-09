@@ -17,10 +17,6 @@ cd /global/scratch/users/enricocalvane/riboseq/imb2/ribotish
 # Create output directory if it doesn't exist
 mkdir -p quality_results
 
-# Define paths to required files
-GENOME="/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.dna.toplevel.fa"
-GTF="/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf"
-
 # Function to process one sample
 process_sample() {
     local sample_id=$1
@@ -29,15 +25,15 @@ process_sample() {
     
     echo "Processing quality control for ${sample_id}"
     
-    # Run ribotish quality with correct parameters
+    # Notice how the -d parameter is now properly quoted
     ribotish quality \
         -b "${bam_path}" \
-        -g "${GTF}" \
+        -g "/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf" \
         -o "${output_prefix}_qual.txt" \
         -f "${output_prefix}_qual.pdf" \
         -r "${output_prefix}.para.py" \
-        -l 25,35 \
-        -d -40,20 \
+        -l "25,35" \
+        -d "-40,20" \
         --bins 20 \
         -p 6 \
         -v
@@ -53,16 +49,13 @@ samples=(
     "LZT104-2"  # imb2 Rep2
 )
 
-# Process samples in parallel, but not all at once to avoid overloading
-# We'll process 4 samples using 6 cores each (24 cores total)
+# Process samples in parallel
 for sample_id in "${samples[@]}"; do
     process_sample "$sample_id" &
 done
 
 # Wait for all background processes to complete
 wait
-
-echo "Quality control complete for all samples"
 
 # Create a summary report
 echo "Creating summary report..."
