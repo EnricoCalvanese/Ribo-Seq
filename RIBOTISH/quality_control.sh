@@ -4,80 +4,35 @@
 #SBATCH --qos=savio_normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=24
-#SBATCH --time=24:00:00
+#SBATCH --time=1:00:00
 #SBATCH --mail-user=enrico_calvane@berkeley.edu
 #SBATCH --mail-type=ALL
-#SBATCH --job-name=quality_control
-#SBATCH --output=quality_control_%j.out
-#SBATCH --error=quality_control_%j.err
+#SBATCH --job-name=ribotish_test
+#SBATCH --output=ribotish_test_%j.out
+#SBATCH --error=ribotish_test_%j.err
 
 # Set working directory
 cd /global/scratch/users/enricocalvane/riboseq/imb2/ribotish
 
-# Create output directory if it doesn't exist
-mkdir -p quality_results
+# Create test directory
+mkdir -p test_output
 
-# Function to process one sample
-process_sample() {
-    local sample_id=$1
-    local bam_path="/global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/${sample_id}_uniq_sort.bam"
-    local output_prefix="quality_results/${sample_id}"
-    
-    echo "Processing quality control for ${sample_id}"
-    
-    # Notice how the -d parameter is now properly quoted
+# Run ribotish with only the required parameters first
+ribotish quality \
+    -b /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/LZT103-1_uniq_sort.bam \
+    -o test_output/basic_test.txt
+
+echo "Basic test complete"
+
+# If the basic test works, try adding one parameter at a time
+if [ $? -eq 0 ]; then
+    echo "Testing with gene annotation..."
     ribotish quality \
-        -b "${bam_path}" \
-        -g "/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf" \
-        -o "${output_prefix}_qual.txt" \
-        -f "${output_prefix}_qual.pdf" \
-        -r "${output_prefix}.para.py" \
-        -l "25,35" \
-        -d "-40,20" \
-        --bins 20 \
-        -p 6 \
-        -v
-        
-    echo "Completed processing ${sample_id}"
-}
+        -b /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/LZT103-1_uniq_sort.bam \
+        -g /global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf \
+        -o test_output/gene_test.txt
+fi
 
-# Array of sample IDs
-samples=(
-    "LZT103-1"  # WT Rep1
-    "LZT103-2"  # WT Rep2
-    "LZT104-1"  # imb2 Rep1
-    "LZT104-2"  # imb2 Rep2
-)
-
-# Process samples in parallel
-for sample_id in "${samples[@]}"; do
-    process_sample "$sample_id" &
-done
-
-# Wait for all background processes to complete
-wait
-
-# Create a summary report
-echo "Creating summary report..."
-{
-    echo "Quality Control Summary"
-    echo "======================"
-    echo ""
-    
-    for sample_id in "${samples[@]}"; do
-        echo "Sample: ${sample_id}"
-        echo "-------------------------"
-        
-        qual_file="quality_results/${sample_id}_qual.txt"
-        if [ -f "$qual_file" ]; then
-            echo "Quality control completed successfully"
-            echo "Summary metrics:"
-            head -n 5 "$qual_file"
-        else
-            echo "Quality control failed or incomplete"
-        fi
-        echo ""
-    done
-} > quality_results/summary.txt
-
-echo "All processing complete. Check quality_results/summary.txt for results."
+# Print the version of ribotish we're using
+echo "Ribotish version:"
+ribotish --version
