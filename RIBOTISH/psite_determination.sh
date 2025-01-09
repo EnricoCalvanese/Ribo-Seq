@@ -11,6 +11,7 @@
 #SBATCH --output=psite_determ_%j.out
 #SBATCH --error=psite_determ_%j.err
 
+####
 # Set working directory
 cd /global/scratch/users/enricocalvane/riboseq/imb2/ribotish
 
