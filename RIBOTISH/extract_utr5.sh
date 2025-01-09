@@ -21,12 +21,34 @@ module load bio/bedtools2/2.31.0-gcc-11.4.0
 mkdir -p reference
 
 # Extract 5' UTR regions from GTF
-awk '$3=="five_prime_utr" {print $1"\t"$4-1"\t"$5"\t"$9"\t.\t"$7}' \
-    /global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf \
-    | sed 's/gene_id "//;s/"; transcript_id "/\t/;s/";//' \
-    > reference/tair10_5utr.bed
+# We'll process each field carefully and create a proper BED format
+awk '
+BEGIN {OFS="\t"}
+$3=="five_prime_utr" {
+    # Extract gene_id from the 9th field
+    match($9, /gene_id "([^"]+)"/, gene)
+    # Extract transcript_id from the 9th field
+    match($9, /transcript_id "([^"]+)"/, transcript)
+    
+    # Print in BED format:
+    # chr start end name score strand
+    print $1,                    # chromosome
+          $4-1,                  # start (0-based)
+          $5,                    # end
+          transcript[1],         # transcript ID as name
+          ".",                   # score (using . as placeholder)
+          $7                     # strand
+}' /global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf > reference/tair10_5utr.bed
 
 # Sort the BED file
 sort -k1,1 -k2,2n reference/tair10_5utr.bed > reference/tair10_5utr.sorted.bed
+
+# Let's verify the output
+echo "First few lines of the sorted BED file:"
+head -n 3 reference/tair10_5utr.sorted.bed
+
+# Count total entries
+echo "Total number of 5' UTR regions extracted:"
+wc -l reference/tair10_5utr.sorted.bed
 
 echo "5' UTR extraction complete"
