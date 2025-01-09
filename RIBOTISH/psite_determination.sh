@@ -11,12 +11,15 @@
 #SBATCH --output=psite_determ_%j.out
 #SBATCH --error=psite_determ_%j.err
 
-####
 # Set working directory
 cd /global/scratch/users/enricocalvane/riboseq/imb2/ribotish
 
 # Create output directory if it doesn't exist
 mkdir -p quality_results
+
+# Set the distance range as an environment variable
+# This helps avoid shell parsing issues with negative numbers
+export DIST_RANGE="-40,20"
 
 # Function to process one sample
 process_sample() {
@@ -26,8 +29,7 @@ process_sample() {
     
     echo "Processing quality control for ${sample_id}"
     
-    # Run ribotish quality with correct parameter formatting
-    # Note: -d -40,20 is passed as a single argument with comma separation
+    # Use the environment variable for the distance parameter
     ribotish quality \
         -b "${bam_path}" \
         -g "/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf" \
@@ -35,7 +37,7 @@ process_sample() {
         -f "${output_prefix}_qual.pdf" \
         -r "${output_prefix}.para.py" \
         -l "25,35" \
-        -d "-40,20" \
+        -d "${DIST_RANGE}" \
         -p 6 \
         -v
         
@@ -43,20 +45,17 @@ process_sample() {
 }
 
 # Array of sample IDs with descriptions
-declare -A samples=(
-    ["LZT103-1"]="WT_Rep1"
-    ["LZT103-2"]="WT_Rep2"
-    ["LZT104-1"]="imb2_Rep1"
-    ["LZT104-2"]="imb2_Rep2"
+samples=(
+    "LZT103-1"  # WT Rep1
+    "LZT103-2"  # WT Rep2
+    "LZT104-1"  # imb2 Rep1
+    "LZT104-2"  # imb2 Rep2
 )
 
-# Process samples
-for sample_id in "${!samples[@]}"; do
-    process_sample "$sample_id" &
+# Process each sample
+for sample_id in "${samples[@]}"; do
+    process_sample "$sample_id"
 done
-
-# Wait for all background processes to complete
-wait
 
 echo "Quality control complete for all samples"
 
@@ -66,8 +65,8 @@ echo "Quality control complete for all samples"
     echo "======================"
     echo ""
     
-    for sample_id in "${!samples[@]}"; do
-        echo "Sample: ${sample_id} (${samples[$sample_id]})"
+    for sample_id in "${samples[@]}"; do
+        echo "Sample: ${sample_id}"
         echo "-------------------------"
         
         qual_file="quality_results/${sample_id}_qual.txt"
