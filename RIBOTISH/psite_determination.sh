@@ -35,20 +35,20 @@ process_sample() {
     local sample_id=$1
     local sample_name=${samples[$sample_id]}
     
-    echo "Processing P-site determination for ${sample_id} (${sample_name})"
+    echo "Processing quality control for ${sample_id} (${sample_name})"
     
     # Create sample-specific output directory
     mkdir -p psite_results/${sample_name}
     
-    # Run ribo-TISH for P-site determination
-    ribo-TISH qualityControl \
+    # Run ribotish quality control
+    ribotish quality \
         -b /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/${sample_id}_uniq_sort.bam \
         -g ${GENOME} \
         -s ${GTF} \
         --utr5 ${UTR_BED} \
-        --align-type forward \
+        --forward \
         -o psite_results/${sample_name} \
-        --aTIS
+        -p 24
         
     echo "Completed processing ${sample_id}"
 }
@@ -61,12 +61,12 @@ done
 # Wait for all background processes to complete
 wait
 
-echo "P-site determination complete for all samples"
+echo "Quality control complete for all samples"
 
 # Create a summary report
 echo "Creating summary report..."
-echo "P-site Determination Summary" > psite_results/summary.txt
-echo "=========================" >> psite_results/summary.txt
+echo "Quality Control Summary" > psite_results/summary.txt
+echo "======================" >> psite_results/summary.txt
 echo "" >> psite_results/summary.txt
 
 for sample_id in "${!samples[@]}"; do
@@ -74,9 +74,13 @@ for sample_id in "${!samples[@]}"; do
     echo "Sample: ${sample_id} (${sample_name})" >> psite_results/summary.txt
     echo "-------------------------" >> psite_results/summary.txt
     
-    # Add relevant metrics from the output files
-    if [ -f "psite_results/${sample_name}/qualityControl_results.txt" ]; then
-        echo "Quality control metrics available" >> psite_results/summary.txt
+    if [ -d "psite_results/${sample_name}" ]; then
+        echo "Quality control results available" >> psite_results/summary.txt
+        # Add any available metrics from the output directory
+        if [ -f "psite_results/${sample_name}/quality.txt" ]; then
+            echo "Metrics from quality control:" >> psite_results/summary.txt
+            cat "psite_results/${sample_name}/quality.txt" >> psite_results/summary.txt
+        fi
     else
         echo "Quality control failed or incomplete" >> psite_results/summary.txt
     fi
