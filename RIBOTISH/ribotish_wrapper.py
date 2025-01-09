@@ -6,13 +6,14 @@ import os
 
 def run_ribotish_quality(bam_path, output_prefix):
     """
-    Run ribotish quality control with proper parameter handling.
+    Run ribotish quality control with minimal required parameters.
+    This version omits the troublesome -d parameter to test if defaults work.
     
     Parameters:
     bam_path: Path to the input BAM file
     output_prefix: Prefix for output files
     """
-    # Define base command with parameters we know work
+    # Define command with only the essential parameters
     cmd = [
         'ribotish', 'quality',
         '-b', bam_path,
@@ -20,14 +21,10 @@ def run_ribotish_quality(bam_path, output_prefix):
         '-o', f'{output_prefix}_qual.txt',
         '-f', f'{output_prefix}_qual.pdf',
         '-r', f'{output_prefix}.para.py',
-        '-l', '25,35',
-        '-p', '6',
-        '-v'
+        '-l', '25,35',  # Length range for RPF reads
+        '-p', '6',      # Number of processors
+        '-v'           # Verbose output
     ]
-    
-    # Convert the -40,20 range into a proper format
-    # We'll pass it as two separate numbers that ribotish can parse
-    cmd.extend(['-d', '-40,20'])
     
     print(f"Running command: {' '.join(cmd)}")
     
@@ -39,17 +36,18 @@ def run_ribotish_quality(bam_path, output_prefix):
         if result.stderr:
             print("Errors/Warnings:")
             print(result.stderr)
+        return True
     except subprocess.CalledProcessError as e:
         print(f"Error running ribotish: {e}")
         print("Error output:")
         print(e.stderr)
-        sys.exit(1)
+        return False
 
 def main():
     # Create output directory
     os.makedirs('quality_results', exist_ok=True)
     
-    # Define our samples
+    # Define our samples with their descriptions
     samples = [
         ('LZT103-1', 'WT_Rep1'),
         ('LZT103-2', 'WT_Rep2'),
@@ -57,14 +55,23 @@ def main():
         ('LZT104-2', 'imb2_Rep2')
     ]
     
+    # Track successful runs
+    successful_runs = []
+    
     # Process each sample
     for sample_id, description in samples:
         print(f"\nProcessing {sample_id} ({description})")
         bam_path = f'/global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/{sample_id}_uniq_sort.bam'
         output_prefix = f'quality_results/{sample_id}'
-        run_ribotish_quality(bam_path, output_prefix)
+        
+        if run_ribotish_quality(bam_path, output_prefix):
+            successful_runs.append(sample_id)
     
-    print("\nQuality control complete for all samples")
+    # Print summary
+    print("\nProcessing complete")
+    print(f"Successfully processed {len(successful_runs)} out of {len(samples)} samples")
+    for sample in successful_runs:
+        print(f"✓ {sample}")
 
 if __name__ == '__main__':
     main()
