@@ -15,14 +15,33 @@
 cd /global/scratch/users/enricocalvane/riboseq/imb2/ribotish
 
 # Create output directory if it doesn't exist
-mkdir -p psite_results
+mkdir -p quality_results
 
-# Define paths to required files
-GENOME="/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.dna.toplevel.fa"
-GTF="/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf"
-UTR_BED="reference/tair10_5utr.sorted.bed"
+# Function to process one sample
+process_sample() {
+    local sample_id=$1
+    local bam_path="/global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/${sample_id}_uniq_sort.bam"
+    local output_prefix="quality_results/${sample_id}"
+    
+    echo "Processing quality control for ${sample_id}"
+    
+    # Run ribotish quality with correct parameter formatting
+    # Note: -d -40,20 is passed as a single argument with comma separation
+    ribotish quality \
+        -b "${bam_path}" \
+        -g "/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf" \
+        -o "${output_prefix}_qual.txt" \
+        -f "${output_prefix}_qual.pdf" \
+        -r "${output_prefix}.para.py" \
+        -l "25,35" \
+        -d "-40,20" \
+        -p 6 \
+        -v
+        
+    echo "Completed processing ${sample_id}"
+}
 
-# Array of sample information
+# Array of sample IDs with descriptions
 declare -A samples=(
     ["LZT103-1"]="WT_Rep1"
     ["LZT103-2"]="WT_Rep2"
@@ -30,30 +49,7 @@ declare -A samples=(
     ["LZT104-2"]="imb2_Rep2"
 )
 
-# Function to process one sample
-process_sample() {
-    local sample_id=$1
-    local sample_name=${samples[$sample_id]}
-    
-    echo "Processing quality control for ${sample_id} (${sample_name})"
-    
-    # Create sample-specific output directory
-    mkdir -p psite_results/${sample_name}
-    
-    # Run ribotish quality control
-    ribotish quality \
-        -b /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/${sample_id}_uniq_sort.bam \
-        -g ${GENOME} \
-        -s ${GTF} \
-        --utr5 ${UTR_BED} \
-        --forward \
-        -o psite_results/${sample_name} \
-        -p 24
-        
-    echo "Completed processing ${sample_id}"
-}
-
-# Process all samples in parallel
+# Process samples
 for sample_id in "${!samples[@]}"; do
     process_sample "$sample_id" &
 done
@@ -64,25 +60,25 @@ wait
 echo "Quality control complete for all samples"
 
 # Create a summary report
-echo "Creating summary report..."
-echo "Quality Control Summary" > psite_results/summary.txt
-echo "======================" >> psite_results/summary.txt
-echo "" >> psite_results/summary.txt
-
-for sample_id in "${!samples[@]}"; do
-    sample_name=${samples[$sample_id]}
-    echo "Sample: ${sample_id} (${sample_name})" >> psite_results/summary.txt
-    echo "-------------------------" >> psite_results/summary.txt
+{
+    echo "Quality Control Summary"
+    echo "======================"
+    echo ""
     
-    if [ -d "psite_results/${sample_name}" ]; then
-        echo "Quality control results available" >> psite_results/summary.txt
-        # Add any available metrics from the output directory
-        if [ -f "psite_results/${sample_name}/quality.txt" ]; then
-            echo "Metrics from quality control:" >> psite_results/summary.txt
-            cat "psite_results/${sample_name}/quality.txt" >> psite_results/summary.txt
+    for sample_id in "${!samples[@]}"; do
+        echo "Sample: ${sample_id} (${samples[$sample_id]})"
+        echo "-------------------------"
+        
+        qual_file="quality_results/${sample_id}_qual.txt"
+        if [ -f "$qual_file" ]; then
+            echo "Quality control completed successfully"
+            echo "Summary metrics:"
+            head -n 5 "$qual_file"
+        else
+            echo "Quality control failed or incomplete"
         fi
-    else
-        echo "Quality control failed or incomplete" >> psite_results/summary.txt
-    fi
-    echo "" >> psite_results/summary.txt
-done
+        echo ""
+    done
+} > quality_results/summary.txt
+
+echo "All processing complete. Check quality_results/summary.txt for results."
