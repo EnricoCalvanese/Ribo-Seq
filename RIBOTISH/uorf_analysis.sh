@@ -26,6 +26,7 @@ UTR_BED="reference/tair10_5utr.sorted.bed"
 echo "Predicting uORFs in WT replicate 1..."
 ribotish predict \
     -b /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/LZT103-1_uniq_sort.bam \
+    -f quality_results/LZT103-1.para.py \
     -g ${GENOME} \
     -t ${GTF} \
     --utr5 ${UTR_BED} \
@@ -34,6 +35,7 @@ ribotish predict \
 echo "Predicting uORFs in WT replicate 2..."
 ribotish predict \
     -b /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/LZT103-2_uniq_sort.bam \
+    -f quality_results/LZT103-2.para.py \
     -g ${GENOME} \
     -t ${GTF} \
     --utr5 ${UTR_BED} \
@@ -42,6 +44,7 @@ ribotish predict \
 echo "Predicting uORFs in imb2 replicate 1..."
 ribotish predict \
     -b /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/LZT104-1_uniq_sort.bam \
+    -f quality_results/LZT104-1.para.py \
     -g ${GENOME} \
     -t ${GTF} \
     --utr5 ${UTR_BED} \
@@ -50,6 +53,7 @@ ribotish predict \
 echo "Predicting uORFs in imb2 replicate 2..."
 ribotish predict \
     -b /global/scratch/users/enricocalvane/riboseq/imb2/unique_reads/LZT104-2_uniq_sort.bam \
+    -f quality_results/LZT104-2.para.py \
     -g ${GENOME} \
     -t ${GTF} \
     --utr5 ${UTR_BED} \
@@ -63,7 +67,9 @@ ribotish tisdiff \
     -g ${GENOME} \
     -t ${GTF} \
     --utr5 ${UTR_BED} \
-    -o uorf_results/differential_analysis.txt
+    -o uorf_results/differential_analysis.txt \
+    -f1 quality_results/LZT103-1.para.py,quality_results/LZT103-2.para.py \
+    -f2 quality_results/LZT104-1.para.py,quality_results/LZT104-2.para.py
 
 # Create summary report
 echo "Creating summary report..."
