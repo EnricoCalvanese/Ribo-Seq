@@ -7,7 +7,7 @@
 #SBATCH --time=2:00:00
 #SBATCH --mail-user=enrico_calvane@berkeley.edu
 #SBATCH --mail-type=ALL
-#SBATCH --job-name=derive_utr5
+#SBATCH --job-name=extract_utr5
 #SBATCH --output=derive_utr5_%j.out
 #SBATCH --error=derive_utr5_%j.err
 
