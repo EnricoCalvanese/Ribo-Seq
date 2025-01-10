@@ -4,7 +4,7 @@
 #SBATCH --qos=savio_normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=24
-#SBATCH --time=1:00:00
+#SBATCH --time=2:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --job-name=uorf_analysis
 #SBATCH --output=uorf_analysis_%j.out
