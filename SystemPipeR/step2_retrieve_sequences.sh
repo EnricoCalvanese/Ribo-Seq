@@ -16,6 +16,7 @@ cd /global/scratch/users/enricocalvane/riboseq/imb2/systemPipeR/attempt2
 
 # Load required modules
 module load bio/bedtools2/2.31.0-gcc-11.4.0
+module load bio/samtools/1.17-gcc-11.4.0
 
 # Define input files
 GENOME="/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.dna.toplevel.fa"
