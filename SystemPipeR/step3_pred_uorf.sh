@@ -11,6 +11,8 @@
 #SBATCH --output=uorf_predict_%j.out
 #SBATCH --error=uorf_predict_%j.err
 
+module load r 
+
 # Set working directory
 cd /global/scratch/users/enricocalvane/riboseq/imb2/systemPipeR/attempt2
 
