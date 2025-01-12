@@ -26,20 +26,37 @@ library(Biostrings)
 
 print("Starting final uORF matching process...")
 
-# Load reference data
+# Load reference data and previous results
+print("Loading reference data and previous results...")
 ref_uorfs <- read.table("results/xu2017uORFs.txt", 
                        header=TRUE, 
                        stringsAsFactors=FALSE)
+
+previous_matches <- read.table("results/reference_analysis/matching_statistics.txt",
+                             header=TRUE, 
+                             stringsAsFactors=FALSE)
+
+# Define problem gene sets
+extra_pred_genes <- previous_matches$gene_id[
+    previous_matches$matched_uorfs > previous_matches$ref_uorfs
+]
+print(paste("Found", length(extra_pred_genes), 
+            "genes with extra predictions to process with disjoint mode"))
 
 # Create reference lookup
 ref_by_gene <- split(ref_uorfs, sub("_.*", "", ref_uorfs$uORF_ID))
 
 # Load UTR sequences
+print("Loading UTR sequences...")
 utr_sequences <- readDNAStringSet("results/reference_analysis/filtered_utrs.fa")
 
 # Function to find closest length match
-find_closest_match <- function(target_length, available_lengths) {
+find_closest_match <- function(target_length, available_lengths, used_lengths) {
     if(length(available_lengths) == 0) return(NULL)
+    # Exclude already used lengths
+    available_lengths <- setdiff(available_lengths, used_lengths)
+    if(length(available_lengths) == 0) return(NULL)
+    
     idx <- which.min(abs(available_lengths - target_length))
     return(available_lengths[idx])
 }
@@ -63,42 +80,51 @@ process_gene <- function(sequence, ref_data, use_disjoint=FALSE) {
     pred_info <- data.frame(
         length = width(ranges(predictions[[1]])),
         start = start(ranges(predictions[[1]])),
-        end = end(ranges(predictions[[1]]))
+        end = end(ranges(predictions[[1]])),
+        index = seq_along(predictions[[1]])
     )
     
-    # Match predictions to reference
-    matched_indices <- numeric(0)
-    matched_lengths <- numeric(0)
+    # Initialize results
+    selected_indices <- integer(0)
+    used_lengths <- numeric(0)
     
-    # First, find exact matches
+    # First pass: find exact matches
     for(ref_len in ref_lengths) {
-        exact_match <- which(pred_info$length == ref_len)
-        if(length(exact_match) > 0) {
-            matched_indices <- c(matched_indices, exact_match[1])
-            matched_lengths <- c(matched_lengths, ref_len)
-        }
-    }
-    
-    # For remaining reference lengths, find closest matches
-    remaining_ref <- setdiff(ref_lengths, matched_lengths)
-    if(length(remaining_ref) > 0) {
-        available_indices <- setdiff(seq_len(nrow(pred_info)), matched_indices)
-        if(length(available_indices) > 0) {
-            for(ref_len in remaining_ref) {
-                available_lengths <- pred_info$length[available_indices]
-                closest <- find_closest_match(ref_len, available_lengths)
-                if(!is.null(closest)) {
-                    idx <- available_indices[which(pred_info$length[available_indices] == closest)[1]]
-                    matched_indices <- c(matched_indices, idx)
+        exact_matches <- which(pred_info$length == ref_len)
+        if(length(exact_matches) > 0) {
+            # Take the first available exact match
+            for(match_idx in exact_matches) {
+                if(!match_idx %in% selected_indices) {
+                    selected_indices <- c(selected_indices, match_idx)
+                    used_lengths <- c(used_lengths, ref_len)
+                    break
                 }
             }
         }
     }
     
-    # Return exactly the number of uORFs we need
-    if(length(matched_indices) > 0) {
-        return(predictions[[1]][matched_indices[seq_len(min(length(matched_indices), 
-                                                          length(ref_lengths)))]])
+    # Second pass: find closest matches for remaining lengths
+    remaining_ref <- setdiff(ref_lengths, used_lengths)
+    for(ref_len in remaining_ref) {
+        available_lengths <- pred_info$length
+        closest <- find_closest_match(ref_len, available_lengths, used_lengths)
+        if(!is.null(closest)) {
+            match_idx <- which(pred_info$length == closest)[1]
+            if(!match_idx %in% selected_indices) {
+                selected_indices <- c(selected_indices, match_idx)
+                used_lengths <- c(used_lengths, closest)
+            }
+        }
+    }
+    
+    # Ensure we have exactly the right number of uORFs
+    if(length(selected_indices) > length(ref_lengths)) {
+        selected_indices <- selected_indices[1:length(ref_lengths)]
+    }
+    
+    # Return selected ORFs
+    if(length(selected_indices) > 0) {
+        return(predictions[[1]][selected_indices])
     }
     return(NULL)
 }
@@ -114,20 +140,25 @@ processing_stats <- data.frame(
     stringsAsFactors = FALSE
 )
 
-for(i in seq_along(utr_sequences)) {
-    # Get gene ID
-    gene_id <- sub("transcript:([^.]+).*", "\\1", names(utr_sequences)[i])
-    
-    # Skip if not in reference
-    if(!gene_id %in% names(ref_by_gene)) next
-    
-    # Process with appropriate strategy
-    use_disjoint <- FALSE  # Default strategy
-    if(gene_id %in% extra_pred_genes) {
-        use_disjoint <- TRUE  # Use disjoint for genes with extra predictions
+# Track progress
+total_genes <- length(names(ref_by_gene))
+current_gene <- 0
+
+for(gene_id in names(ref_by_gene)) {
+    current_gene <- current_gene + 1
+    if(current_gene %% 100 == 0) {
+        print(paste("Processing gene", current_gene, "of", total_genes))
     }
     
-    results <- process_gene(utr_sequences[i], 
+    # Find corresponding sequence
+    seq_idx <- grep(paste0("transcript:", gene_id, "\\."), names(utr_sequences))
+    if(length(seq_idx) == 0) next
+    
+    # Determine processing strategy
+    use_disjoint <- gene_id %in% extra_pred_genes
+    
+    # Process gene
+    results <- process_gene(utr_sequences[seq_idx], 
                           ref_by_gene[[gene_id]], 
                           use_disjoint)
     
@@ -147,11 +178,10 @@ for(i in seq_along(utr_sequences)) {
             stringsAsFactors = FALSE
         ))
     }
-    
-    if(i %% 100 == 0) print(paste("Processed", i, "sequences"))
 }
 
 # Create final output data frame
+print("Creating final output...")
 results_df <- data.frame(
     uORF_ID = character(),
     Length_uORF = numeric(),
@@ -174,12 +204,17 @@ for(gene in names(final_results)) {
     }
 }
 
+# Sort results to match reference format
+results_df <- results_df[order(results_df$uORF_ID),]
+
 # Generate summary report
+print("Generating summary report...")
 summary_report <- paste0(
     "Final uORF Matching Results\n",
     "========================\n\n",
     "Overall Statistics:\n",
-    "- Total genes processed: ", length(unique(results_df$uORF_ID)), "\n",
+    "- Total reference genes: ", length(names(ref_by_gene)), "\n",
+    "- Total genes processed: ", nrow(processing_stats), "\n",
     "- Total uORFs identified: ", nrow(results_df), "\n",
     "- Reference uORFs: ", nrow(ref_uorfs), "\n",
     "- Match rate: ", round(100 * nrow(results_df)/nrow(ref_uorfs), 2), "%\n\n",
