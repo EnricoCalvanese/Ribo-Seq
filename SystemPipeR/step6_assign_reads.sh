@@ -10,7 +10,7 @@
 #SBATCH --job-name=count_reads
 #SBATCH --output=count_reads_%j.out
 #SBATCH --error=count_reads_%j.err
-
+module load r
 # Set working directory
 cd /global/scratch/users/enricocalvane/riboseq/imb2/systemPipeR/attempt2
 
