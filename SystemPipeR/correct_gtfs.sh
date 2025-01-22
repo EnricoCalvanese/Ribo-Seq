@@ -23,29 +23,59 @@ cat << 'EOF' > create_morf_gtf.R
 library(rtracklayer)
 library(GenomicRanges)
 
+# Function to safely read a file with error checking
+safe_read_table <- function(filepath, ...) {
+    if (!file.exists(filepath)) {
+        stop(paste("File not found:", filepath))
+    }
+    tryCatch({
+        read.table(filepath, ...)
+    }, error = function(e) {
+        stop(paste("Error reading file:", filepath, "\nError:", e$message))
+    })
+}
+
 print("Starting GTF file creation with proper mORF definitions...")
 
-# Load uORF predictions
-print("Loading uORF predictions...")
-uorf_data <- read.table("results/reference_analysis/final_matched_uorfs.txt",
-                       header=TRUE, stringsAsFactors=FALSE)
+# Step 1: Load and validate reference data
+print("Loading input files...")
 
-# Get list of genes with uORFs
+# Load uORF predictions
+uorf_data <- safe_read_table("results/reference_analysis/final_matched_uorfs.txt", 
+                            header=TRUE, stringsAsFactors=FALSE)
+print(paste("Loaded", nrow(uorf_data), "uORF predictions"))
+
+# Get unique genes with uORFs
 genes_with_uorfs <- unique(sub("_.*", "", uorf_data$uORF_ID))
 print(paste("Found", length(genes_with_uorfs), "genes with uORFs"))
 
 # Load 5' UTR coordinates
-print("Loading UTR coordinates...")
-utr_bed <- read.table("/global/scratch/users/enricocalvane/riboseq/imb2/ribotish/reference/tair10_5utr.sorted.bed",
-                      col.names=c("chr", "start", "end", "transcript_id", "score", "strand"))
+utr_bed <- safe_read_table(
+    "/global/scratch/users/enricocalvane/riboseq/imb2/ribotish/reference/tair10_5utr.sorted.bed",
+    col.names=c("chr", "start", "end", "transcript_id", "score", "strand"),
+    stringsAsFactors=FALSE
+)
+print(paste("Loaded", nrow(utr_bed), "UTR entries"))
+
+# Clean UTR transcript IDs
 utr_bed$transcript_id <- sub("transcript:", "", utr_bed$transcript_id)
 utr_bed$gene_id <- sub("\\..*", "", utr_bed$transcript_id)
 
-# Load GTF for gene information
+# Load GTF file
 print("Loading reference GTF...")
-gtf <- read.table("/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf",
-                 header=FALSE, sep="\t", quote="")
-colnames(gtf) <- c("V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9")
+gtf_file <- "/global/scratch/users/enricocalvane/riboseq/Xu2017/tair10_reference/Arabidopsis_thaliana.TAIR10.60.gtf"
+gtf <- safe_read_table(gtf_file, sep="\t", quote="", comment.char="#", stringsAsFactors=FALSE)
+names(gtf) <- c("seqname", "source", "feature", "start", "end", "score", "strand", "frame", "attribute")
+print(paste("Loaded GTF file with", nrow(gtf), "entries"))
+
+# Step 2: Process GTF entries
+print("Processing GTF entries...")
+
+# Extract gene and transcript IDs from GTF attributes
+gtf$gene_id <- sub('.*gene_id "([^"]+)".*', "\\1", gtf$attribute)
+gtf$gene_id <- sub("gene:", "", gtf$gene_id)
+gtf$transcript_id <- sub('.*transcript_id "([^"]+)".*', "\\1", gtf$attribute)
+gtf$transcript_id <- sub("transcript:", "", gtf$transcript_id)
 
 # Function to convert UTR-relative to genomic coordinates
 convert_to_genomic <- function(uorf_row, utr_info) {
@@ -104,38 +134,36 @@ for(i in seq_len(nrow(uorf_data))) {
     }
 }
 
-# Function to process mORFs correctly
+print(paste("Created", nrow(uorf_gtf), "uORF entries"))
+
+# Step 3: Create complete mORFs
+# Function to create complete mORF entry
 create_complete_morf <- function(cds_entries) {
-    # Sort CDS entries by position
-    cds_entries <- cds_entries[order(cds_entries$V4),]
+    if(nrow(cds_entries) == 0) return(NULL)
     
-    # Create single mORF entry spanning all CDS regions
+    # Sort CDS entries by position
+    cds_entries <- cds_entries[order(cds_entries$start),]
+    
+    # Create single mORF entry
     data.frame(
-        seqname = cds_entries$V1[1],
+        seqname = cds_entries$seqname[1],
         source = "systemPipeR",
         feature = "mORF",
-        start = min(cds_entries$V4),    # Most upstream start
-        end = max(cds_entries$V5),      # Most downstream end
+        start = min(cds_entries$start),
+        end = max(cds_entries$end),
         score = ".",
-        strand = cds_entries$V7[1],
+        strand = cds_entries$strand[1],
         frame = ".",
-        attribute = cds_entries$V9[1]
+        attribute = cds_entries$attribute[1]
     )
 }
 
-# Process GTF for mORFs
+# Process mORFs
 print("Processing mORF entries...")
-# Extract gene and transcript IDs
-gtf$gene_id <- sub('.*gene_id "([^"]+)".*', "\\1", gtf$V9)
-gtf$gene_id <- sub("gene:", "", gtf$gene_id)
-gtf$transcript_id <- sub('.*transcript_id "([^"]+)".*', "\\1", gtf$V9)
-gtf$transcript_id <- sub("transcript:", "", gtf$transcript_id)
+cds_entries <- gtf[gtf$feature == "CDS" & gtf$gene_id %in% genes_with_uorfs,]
+print(paste("Found", nrow(cds_entries), "CDS entries for", length(genes_with_uorfs), "genes"))
 
-# Filter for CDS entries of genes with uORFs
-cds_entries <- gtf[gtf$V3 == "CDS" & gtf$gene_id %in% genes_with_uorfs,]
-
-# Process each gene to create complete mORFs
-print("Creating complete mORF entries...")
+# Create complete mORFs
 morf_gtf <- data.frame()
 processed_genes <- 0
 
@@ -156,7 +184,9 @@ for(gene in genes_with_uorfs) {
     
     # Create complete mORF entry
     morf_entry <- create_complete_morf(transcript_cds)
-    morf_gtf <- rbind(morf_gtf, morf_entry)
+    if(!is.null(morf_entry)) {
+        morf_gtf <- rbind(morf_gtf, morf_entry)
+    }
     
     processed_genes <- processed_genes + 1
     if(processed_genes %% 1000 == 0) {
@@ -181,13 +211,17 @@ print("GTF file creation complete.")
 print(paste("Created uORF GTF with", nrow(uorf_gtf), "entries"))
 print(paste("Created mORF GTF with", nrow(morf_gtf), "entries"))
 
-# Print example entries for verification
+# Print example entries and coordinate ranges
+print("\nFirst few entries of uORF GTF:")
+print(head(uorf_gtf))
 print("\nFirst few entries of mORF GTF:")
 print(head(morf_gtf))
 
-# Verify coordinates
 print("\nCoordinate ranges for verification:")
-print("mORF coordinate ranges:")
+print("uORF coordinate ranges:")
+print(summary(uorf_gtf$start))
+print(summary(uorf_gtf$end))
+print("\nmORF coordinate ranges:")
 print(summary(morf_gtf$start))
 print(summary(morf_gtf$end))
 EOF
