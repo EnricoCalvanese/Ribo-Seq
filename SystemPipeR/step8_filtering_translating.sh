@@ -4,10 +4,10 @@
 #SBATCH --qos=savio_normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=24
-#SBATCH --time=0:30:00
-#SBATCH --job-name=rpkm_filter_diag
-#SBATCH --output=rpkm_filter_diag_%j.out
-#SBATCH --error=rpkm_filter_diag_%j.err
+#SBATCH --time=1:00:00
+#SBATCH --job-name=rpkm_filter
+#SBATCH --output=rpkm_filter_%j.out
+#SBATCH --error=rpkm_filter_%j.err
 
 # Set working directory
 cd /global/scratch/users/enricocalvane/riboseq/imb2/systemPipeR/attempt2
@@ -16,11 +16,8 @@ cd /global/scratch/users/enricocalvane/riboseq/imb2/systemPipeR/attempt2
 module load r
 
 # Create R script
-cat << 'EOF' > filter_by_rpkm_diagnostic.R
-# Load required libraries
-library(rtracklayer)
-
-# Create directory for diagnostics
+cat << 'EOF' > fixed_rpkm.R
+# Create diagnostic directory
 dir.create("results/counts/diagnostics", showWarnings=FALSE, recursive=TRUE)
 
 # Function to write diagnostic info
@@ -34,30 +31,36 @@ write_diagnostic <- function(data, filename, sample="", note="") {
     sink()
 }
 
+# Function to clean gene IDs from GTF attributes
+clean_gene_id <- function(attr) {
+    # Extract text between gene_id "gene: and first "
+    id <- sub('.*gene_id "gene:([^"]+)".*', "\\1", attr)
+    return(id)
+}
+
+print("Loading and processing GTF file...")
+# Read GTF files
+morf_gtf <- read.table("results/counts/morfs.gtf", header=FALSE, sep="\t", quote="")
+
+# Calculate mORF lengths with proper gene ID extraction
+morf_lengths <- data.frame(
+    gene_id = sapply(morf_gtf$V9, clean_gene_id),
+    length = morf_gtf$V5 - morf_gtf$V4 + 1
+)
+
+# Verify gene ID cleaning worked
+write_diagnostic(head(morf_lengths), "length_extraction.txt", 
+                note="First few mORF lengths with cleaned gene IDs:")
+
 # Function to calculate RPKM
 calculate_rpkm <- function(counts, lengths, total_reads) {
     rpkm <- (counts * 10^9) / (lengths * total_reads)
     return(rpkm)
 }
 
-print("Loading GTF files and calculating lengths...")
-
-# Read GTF files
-morf_gtf <- read.table("results/counts/morfs.gtf", header=FALSE, sep="\t", quote="")
-write_diagnostic(head(morf_gtf), "gtf_content.txt", note="First few lines of mORF GTF:")
-
-# Calculate mORF lengths
-morf_lengths <- data.frame(
-    gene_id = sub('gene_id "([^"]+)".*', "\\1", morf_gtf$V9),
-    length = morf_gtf$V5 - morf_gtf$V4 + 1
-)
-morf_lengths$gene_id <- sub("gene:", "", morf_lengths$gene_id)
-
-write_diagnostic(summary(morf_lengths$length), "length_stats.txt", 
-                note="mORF length statistics:")
-
 # Process each sample
 samples <- c("LZT103-1", "LZT103-2", "LZT104-1", "LZT104-2")
+results_summary <- data.frame()
 
 for(sample in samples) {
     print(paste("\nProcessing sample:", sample))
@@ -66,113 +69,113 @@ for(sample in samples) {
     morf_counts <- read.table(paste0("results/counts/", sample, "_morf_counts.txt"))
     uorf_counts <- read.table(paste0("results/counts/", sample, "_uorf_counts.txt"))
     
-    write_diagnostic(head(morf_counts), "raw_counts.txt", sample,
-                    "First few mORF counts before processing:")
-    
-    # Clean gene IDs
+    # Clean gene IDs in count data
     morf_counts$V1 <- sub("gene:", "", morf_counts$V1)
     
-    # Diagnostic: Check for HTSeq categories
-    htseq_cats <- morf_counts[grep("^__", morf_counts$V1), ]
-    write_diagnostic(htseq_cats, "htseq_stats.txt", sample,
-                    "HTSeq statistics categories:")
+    # Filter out HTSeq summary statistics
+    morf_data <- morf_counts[!grepl("^__", morf_counts$V1),]
     
-    # Calculate total mapped reads
-    total_reads <- sum(morf_counts$V2[!grepl("^__", morf_counts$V1)]) + 
+    # Calculate total mapped reads (excluding HTSeq stats)
+    total_reads <- sum(morf_data$V2) + 
                   sum(uorf_counts$V2[!grepl("^__", uorf_counts$V1)])
-    write_diagnostic(total_reads, "total_reads.txt", sample,
-                    "Total mapped reads:")
     
-    # Create mORF data frame with all information
+    write_diagnostic(total_reads, "total_reads.txt", sample, 
+                    "Total mapped reads (excluding HTSeq stats):")
+    
+    # Match lengths to count data
     morf_data <- data.frame(
-        gene_id = morf_counts$V1[!grepl("^__", morf_counts$V1)],
-        counts = morf_counts$V2[!grepl("^__", morf_counts$V1)]
+        gene_id = morf_data$V1,
+        counts = morf_data$V2
     )
+    
+    # Add lengths with diagnostic output
     morf_data$length <- morf_lengths$length[match(morf_data$gene_id, morf_lengths$gene_id)]
     
-    # Check for any missing lengths
+    # Check for missing length matches
     missing_lengths <- is.na(morf_data$length)
-    write_diagnostic(sum(missing_lengths), "missing_lengths.txt", sample,
-                    "Number of genes with missing length information:")
     if(sum(missing_lengths) > 0) {
-        write_diagnostic(head(morf_data[missing_lengths,]), "missing_lengths.txt", sample,
-                        "Examples of genes with missing lengths:")
+        write_diagnostic(
+            morf_data[missing_lengths, ],
+            "missing_length_details.txt",
+            sample,
+            paste("Genes with missing lengths:", sum(missing_lengths))
+        )
     }
     
     # Calculate RPKM
     morf_data$rpkm <- calculate_rpkm(morf_data$counts, morf_data$length, total_reads)
     
-    # Detailed RPKM diagnostics
-    write_diagnostic(summary(morf_data$rpkm), "rpkm_stats.txt", sample,
-                    "RPKM summary statistics:")
-    write_diagnostic(sum(morf_data$rpkm >= 1), "rpkm_filter.txt", sample,
-                    "Number of genes with RPKM >= 1:")
+    # RPKM distribution check
+    write_diagnostic(summary(morf_data$rpkm), "rpkm_distribution.txt", sample,
+                    "RPKM distribution:")
     write_diagnostic(head(morf_data[order(-morf_data$rpkm),]), "top_rpkm.txt", sample,
                     "Top RPKM values:")
-    write_diagnostic(head(morf_data[morf_data$rpkm < 1,]), "low_rpkm.txt", sample,
-                    "Examples of genes with RPKM < 1:")
     
     # Filter for RPKM >= 1
     genes_pass_rpkm <- morf_data$gene_id[morf_data$rpkm >= 1]
+    write_diagnostic(length(genes_pass_rpkm), "rpkm_filter.txt", sample,
+                    "Number of genes passing RPKM filter:")
     
-    # Process uORF counts
+    # Process uORF data
     uorf_data <- data.frame(
         gene_id = sub("_.*", "", uorf_counts$V1[!grepl("^__", uorf_counts$V1)]),
         counts = uorf_counts$V2[!grepl("^__", uorf_counts$V1)]
     )
     
-    # Diagnostic for uORF counts
-    write_diagnostic(table(uorf_data$counts > 0), "uorf_read_dist.txt", sample,
-                    "Distribution of genes with/without uORF reads:")
-    
-    # Sum counts for all uORFs of the same gene
+    # Sum counts by gene
     uorf_by_gene <- aggregate(counts ~ gene_id, data=uorf_data, sum)
     
-    # Diagnostic for gene ID matching
-    write_diagnostic(head(genes_pass_rpkm), "gene_ids.txt", sample,
-                    "Sample of gene IDs passing RPKM filter:")
-    write_diagnostic(head(uorf_by_gene$gene_id[uorf_by_gene$counts > 0]), "gene_ids.txt", sample,
-                    "Sample of gene IDs with uORF reads:")
-    
-    # Check gene ID overlap
-    genes_in_both <- intersect(genes_pass_rpkm, uorf_by_gene$gene_id)
-    write_diagnostic(length(genes_in_both), "gene_overlap.txt", sample,
-                    "Number of genes present in both sets:")
-    
-    # Final filtering
+    # Find genes passing both filters
     genes_pass_both <- intersect(
         genes_pass_rpkm,
         uorf_by_gene$gene_id[uorf_by_gene$counts > 0]
     )
     
-    # Save detailed info for genes passing RPKM but not uORF filter
-    rpkm_only <- setdiff(genes_pass_rpkm, uorf_by_gene$gene_id[uorf_by_gene$counts > 0])
-    if(length(rpkm_only) > 0) {
-        write_diagnostic(head(rpkm_only), "rpkm_only_genes.txt", sample,
-                        "Genes passing RPKM but no uORF reads:")
-    }
+    # Save filtered gene list
+    write.table(genes_pass_both,
+                paste0("results/counts/", sample, "_filtered_genes.txt"),
+                quote=FALSE, row.names=FALSE, col.names=FALSE)
     
-    # Save all analysis results
-    write.table(data.frame(
-        gene_id = morf_data$gene_id,
-        morf_counts = morf_data$counts,
-        morf_length = morf_data$length,
-        morf_rpkm = morf_data$rpkm,
-        uorf_counts = uorf_by_gene$counts[match(morf_data$gene_id, uorf_by_gene$gene_id)]
-    ), file=paste0("results/counts/diagnostics/", sample, "_complete_analysis.txt"),
-    row.names=FALSE, quote=FALSE, sep="\t")
+    # Save complete analysis
+    analysis_data <- merge(
+        morf_data,
+        uorf_by_gene,
+        by="gene_id",
+        all.x=TRUE
+    )
+    names(analysis_data)[5] <- "uorf_counts"
+    write.table(analysis_data,
+                paste0("results/counts/diagnostics/", sample, "_complete_analysis.txt"),
+                quote=FALSE, row.names=FALSE, sep="\t")
     
     # Update results summary
-    write_diagnostic(c(
-        paste("Total genes analyzed:", nrow(morf_data)),
-        paste("Genes with RPKM >= 1:", length(genes_pass_rpkm)),
-        paste("Genes with uORF reads:", sum(uorf_by_gene$counts > 0)),
-        paste("Genes passing both filters:", length(genes_pass_both))
-    ), "step_by_step.txt", sample, "Step-by-step results:")
+    results_summary <- rbind(results_summary, data.frame(
+        sample = sample,
+        total_genes = nrow(morf_data),
+        genes_rpkm = length(genes_pass_rpkm),
+        genes_with_uorf_reads = sum(uorf_by_gene$counts > 0),
+        genes_pass_both = length(genes_pass_both)
+    ))
 }
 
-print("Analysis complete. Check results/counts/diagnostics/ for detailed information.")
+# Create final summary
+summary_report <- "RPKM and Read Coverage Filtering Summary\n"
+summary_report <- paste0(summary_report, "=====================================\n\n")
+
+for(i in 1:nrow(results_summary)) {
+    summary_report <- paste0(
+        summary_report,
+        "Sample: ", results_summary$sample[i], "\n",
+        "- Total genes analyzed: ", results_summary$total_genes[i], "\n",
+        "- Genes with mORF RPKM >= 1: ", results_summary$genes_rpkm[i], "\n",
+        "- Genes with uORF reads: ", results_summary$genes_with_uorf_reads[i], "\n",
+        "- Genes passing both filters: ", results_summary$genes_pass_both[i], "\n\n"
+    )
+}
+
+writeLines(summary_report, "results/counts/filtering_summary.txt")
+print(summary_report)
 EOF
 
 # Run R script
-Rscript filter_by_rpkm_diagnostic.R
+Rscript fixed_rpkm.R
