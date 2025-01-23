@@ -4,9 +4,7 @@
 #SBATCH --qos=savio_normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=24
-#SBATCH --time=8:00:00
-#SBATCH --mail-user=enrico_calvane@berkeley.edu
-#SBATCH --mail-type=ALL
+#SBATCH --time=1:00:00
 #SBATCH --job-name=rpkm_filter
 #SBATCH --output=rpkm_filter_%j.out
 #SBATCH --error=rpkm_filter_%j.err
