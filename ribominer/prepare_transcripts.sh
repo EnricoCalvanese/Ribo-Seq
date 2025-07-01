@@ -20,6 +20,7 @@ GTF_ORIG="/global/scratch/users/enricocalvane/riboseq/Araport11_GTF_genes_transp
 FASTA="/global/scratch/users/enricocalvane/riboseq/Athaliana_447_TAIR10.fa"
 GTF_CLEANED="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/Araport11_GTF_cleaned.gtf"
 GTF_PATCHED="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/Araport11_GTF_genes_transposons.patched.gtf"
+GTF_PATCHED_T="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/Araport11_GTF_genes_transposons.patched.transcript.gtf"
 OUTDIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/prepared_transcripts"
 SIF="ribocode_ribominer_latest.sif"
 
@@ -41,12 +42,12 @@ awk 'BEGIN{OFS="\t"} {
   print $1, $2, $3, $4, $5, $6, $7, $8, $9;
 }' "$GTF_CLEANED" > "$GTF_PATCHED"
 
-sed 's/\tmRNA\t/\ttranscript\t/g' "$GTF_PATCHED" > "${GTF_PATCHED%.gtf}.transcript.gtf"
+sed 's/\tmRNA\t/\ttranscript\t/g' "$GTF_PATCHED" > "$GTF_PATCHED_T"
 
 echo "Running prepare_transcripts with Singularity..."
 singularity exec "$SIF" \
   /root/miniconda3/bin/prepare_transcripts \
-  -g "$GTF_PATCHED" \
+  -g "$GTF_PATCHED_T" \
   -f "$FASTA" \
   -o "$OUTDIR"
 
