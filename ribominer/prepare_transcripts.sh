@@ -18,7 +18,7 @@ date
 # Paths
 FASTA="/global/scratch/users/enricocalvane/riboseq/Athaliana_447_TAIR10.fa"
 GTF_PATCHED="/global/scratch/users/enricocalvane/riboseq/Araport11_GTF_genes_transposons.patched.gtf"
-OUTDIR="/global/scratch/users/enricocalvane/riboseq/prepared_transcripts"
+OUTDIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/prepared_transcripts"
 SIF="ribocode_ribominer_latest.sif"
 
 mkdir -p "$OUTDIR"
