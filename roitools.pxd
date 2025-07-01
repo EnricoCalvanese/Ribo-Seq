@@ -67,8 +67,8 @@ cdef list get_segments_from_bed(dict attr)
 # Single, continuous stretches of the genome
 cdef class GenomicSegment(object):                      # 20 bytes + str
     cdef str chrom
-    cdef long start                                     # 8 bytes
-    cdef long end                                       # 8 bytes
+    cdef int start                                     # 8 bytes
+    cdef int end                                       # 8 bytes
     cdef Strand c_strand                                # 4 bytes if int
     cpdef bint contains(self, GenomicSegment)
     cpdef bint overlaps(self, GenomicSegment)
@@ -81,8 +81,8 @@ cdef class SegmentChain(object):                       # >= 836 bytes
     cdef:
         list _segments, _mask_segments                 # 72 bytes/each -> 144 + contents
         readonly GenomicSegment spanning_segment       # 20 bytes + str
-        readonly long length                           # 8 bytes
-        readonly long masked_length                    # 8 bytes
+        readonly int length                           # 8 bytes
+        readonly int masked_length                    # 8 bytes
 
         array.array _position_hash                     # 56 + contents
         array.array _position_mask # really should be bint, but we can't use it there
@@ -113,9 +113,9 @@ cdef class SegmentChain(object):                       # >= 836 bytes
     cpdef set get_masked_position_set(self)
 
     # subchains/coordinates
-    cdef long c_get_genomic_coordinate(self, long, bint) except -1
-    cdef long c_get_segmentchain_coordinate(self, long, bint) except -1
-    cdef SegmentChain c_get_subchain(self, long, long, bint)
+    cdef int c_get_genomic_coordinate(self, int, bint) except -1
+    cdef int c_get_segmentchain_coordinate(self, int, bint) except -1
+    cdef SegmentChain c_get_subchain(self, int, int, bint)
 
     # strand changes
     cdef SegmentChain _restrand(self, Strand strand)#,extra_attr=*)
