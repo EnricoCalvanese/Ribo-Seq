@@ -15,34 +15,51 @@ echo "Starting prepare_transcripts job on $(hostname)"
 date
 
 # Paths
-GTF_ORIG="/global/scratch/users/enricocalvane/riboseq/Athaliana_447_Araport11.gene.gtf"
-GTF_PATCHED="/global/scratch/users/enricocalvane/riboseq/Athaliana_447_Araport11.gene.patched.gtf"
+ORIGINAL_GTF="/global/scratch/users/enricocalvane/riboseq/Athaliana_447_Araport11.gene.gtf"
+MODIFIED_GTF="/global/scratch/users/enricocalvane/riboseq/Athaliana_447_Araport11.gene.modified.gtf"
 FASTA="/global/scratch/users/enricocalvane/riboseq/Athaliana_447_TAIR10.fa"
 OUTDIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/prepared_transcripts"
 SIF="ribocode_ribominer_latest.sif"
 
+# Create output directory
 mkdir -p "$OUTDIR"
 
-awk '
-BEGIN { OFS = "\t" }
-{
-  # Extract transcript_id and gene_id using regex
-  match($9, /transcript_id "([^"]+)"/, tid)
-  match($9, /gene_id "([^"]+)"/, gid)
+# Step 1: Modify GTF file to add transcript_type information
+echo "Step 1: Adding transcript_type information to GTF file..."
+if [ ! -f "$MODIFIED_GTF" ]; then
+    echo "Creating modified GTF file with transcript_type information..."
+    awk '{
+        # Remove trailing whitespace and semicolon if present
+        gsub(/[[:space:]]*;?[[:space:]]*$/, "")
+        
+        # Add transcript_type attribute
+        print $0 "; transcript_type \"protein_coding\";"
+    }' "$ORIGINAL_GTF" > "$MODIFIED_GTF"
+    
+    echo "Modified GTF file created: $MODIFIED_GTF"
+    echo "Sample of modified file:"
+    head -3 "$MODIFIED_GTF"
+else
+    echo "Modified GTF file already exists: $MODIFIED_GTF"
+fi
 
-  if (tid[1] != "" && gid[1] != "") {
-    $9 = "transcript_id \"" tid[1] "\"; gene_id \"" gid[1] "\"; transcript_biotype \"protein_coding\";"
-    print
-  }
-}
-' "$GTF_ORIG" > "$GTF_PATCHED"
+# Step 2: Run prepare_transcripts with the modified GTF
+echo ""
+echo "Step 2: Running prepare_transcripts with Singularity..."
+echo "Using modified GTF: $MODIFIED_GTF"
+echo "Using FASTA: $FASTA"
+echo "Output directory: $OUTDIR"
 
-echo "Running prepare_transcripts with Singularity..."
 singularity exec "$SIF" \
   /root/miniconda3/bin/prepare_transcripts \
-  -g "$GTF_PATCHED" \
+  -g "$MODIFIED_GTF" \
   -f "$FASTA" \
   -o "$OUTDIR"
 
+echo ""
 echo "prepare_transcripts completed successfully."
+echo "Output files in: $OUTDIR"
+ls -la "$OUTDIR"
+
 date
+echo "Job completed on $(hostname)"
