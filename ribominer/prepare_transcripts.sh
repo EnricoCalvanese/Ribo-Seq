@@ -32,10 +32,21 @@ if [ ! -f "$MODIFIED_GTF" ]; then
         # Remove trailing whitespace and semicolon if present
         gsub(/[[:space:]]*;?[[:space:]]*$/, "")
         
-        # Only add transcript_type to lines that are NOT gene lines
-        # Gene lines should only have gene_id, not transcript_id
         if ($3 == "gene") {
-            print $0 ";"
+            # For gene lines, remove transcript_id if present and keep only gene_id
+            # Split the attributes part and rebuild without transcript_id
+            attributes = $9
+            for (i = 10; i <= NF; i++) {
+                attributes = attributes " " $i
+            }
+            
+            # Extract gene_id from attributes
+            if (match(attributes, /gene_id "[^"]*"/)) {
+                gene_id_part = substr(attributes, RSTART, RLENGTH)
+                print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 "\t" $7 "\t" $8 "\t" gene_id_part ";"
+            } else {
+                print $0 ";"
+            }
         } else {
             # For transcript, exon, CDS, etc. lines, add transcript_type
             print $0 "; transcript_type \"protein_coding\";"
@@ -61,7 +72,7 @@ singularity exec "$SIF" \
   -g "$MODIFIED_GTF" \
   -f "$FASTA" \
   -o "$OUTDIR"
-
+  
 echo ""
 echo "prepare_transcripts completed successfully."
 echo "Output files in: $OUTDIR"
