@@ -25,13 +25,13 @@ mkdir -p "$OUTDIR"
 
 awk '
 BEGIN { OFS = "\t" }
-($3 == "transcript" || $3 == "exon" || $3 == "CDS") {
-  tid = ""; gid = ""; rest = "";
-  match($9, /transcript_id "([^"]+)"/, t);
-  match($9, /gene_id "([^"]+)"/, g);
-  if (t[1] && g[1]) {
-    tid = t[1]; gid = g[1];
-    $9 = "transcript_id \"" tid "\"; gene_id \"" gid "\"; transcript_biotype \"protein_coding\";";
+{
+  # Append transcript_biotype to attributes
+  if ($9 ~ /transcript_biotype/) {
+    print;
+  } else {
+    if (substr($9, length($9)) != ";") $9 = $9 ";";
+    $9 = $9 " transcript_biotype \"protein_coding\";";
     print;
   }
 }
