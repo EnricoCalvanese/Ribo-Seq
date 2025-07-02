@@ -24,7 +24,7 @@ SIF="ribocode_ribominer_latest.sif"
 # Create output directory
 mkdir -p "$OUTDIR"
 
-# Step 1: Modify GTF file to add transcript_type information
+# Step 1: Modify GTF file to add transcript_type information ONLY to transcript-related lines
 echo "Step 1: Adding transcript_type information to GTF file..."
 if [ ! -f "$MODIFIED_GTF" ]; then
     echo "Creating modified GTF file with transcript_type information..."
@@ -32,13 +32,19 @@ if [ ! -f "$MODIFIED_GTF" ]; then
         # Remove trailing whitespace and semicolon if present
         gsub(/[[:space:]]*;?[[:space:]]*$/, "")
         
-        # Add transcript_type attribute
-        print $0 "; transcript_type \"protein_coding\";"
+        # Only add transcript_type to lines that are NOT gene lines
+        # Gene lines should only have gene_id, not transcript_id
+        if ($3 == "gene") {
+            print $0 ";"
+        } else {
+            # For transcript, exon, CDS, etc. lines, add transcript_type
+            print $0 "; transcript_type \"protein_coding\";"
+        }
     }' "$ORIGINAL_GTF" > "$MODIFIED_GTF"
     
     echo "Modified GTF file created: $MODIFIED_GTF"
     echo "Sample of modified file:"
-    head -3 "$MODIFIED_GTF"
+    head -5 "$MODIFIED_GTF"
 else
     echo "Modified GTF file already exists: $MODIFIED_GTF"
 fi
