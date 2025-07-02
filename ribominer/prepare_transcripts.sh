@@ -24,8 +24,17 @@ SIF="ribocode_ribominer_latest.sif"
 # Create output directory
 mkdir -p "$OUTDIR"
 
-# Step 1: Modify GTF file to add transcript_type information ONLY to transcript-related lines
-echo "Step 1: Adding transcript_type information to GTF file..."
+# Step 1: First, let's analyze the original GTF file to understand the issue
+echo "Step 1: Analyzing the original GTF file..."
+echo "Feature types in the original GTF:"
+awk '{print $3}' "$ORIGINAL_GTF" | sort | uniq -c
+
+echo ""
+echo "Lines missing transcript_id (excluding gene lines):"
+awk '$3 != "gene" && !/transcript_id/ {print NR ": " $0}' "$ORIGINAL_GTF" | head -10
+
+echo ""
+echo "Step 2: Creating modified GTF file..."
 if [ ! -f "$MODIFIED_GTF" ]; then
     echo "Creating modified GTF file with transcript_type information..."
     awk '{
@@ -33,8 +42,7 @@ if [ ! -f "$MODIFIED_GTF" ]; then
         gsub(/[[:space:]]*;?[[:space:]]*$/, "")
         
         if ($3 == "gene") {
-            # For gene lines, remove transcript_id if present and keep only gene_id
-            # Split the attributes part and rebuild without transcript_id
+            # For gene lines, keep only gene_id (remove transcript_id if present)
             attributes = $9
             for (i = 10; i <= NF; i++) {
                 attributes = attributes " " $i
@@ -48,7 +56,13 @@ if [ ! -f "$MODIFIED_GTF" ]; then
                 print $0 ";"
             }
         } else {
-            # For transcript, exon, CDS, etc. lines, add transcript_type
+            # For non-gene lines, check if transcript_id exists
+            if (!/transcript_id/) {
+                # Skip lines without transcript_id as they will cause errors
+                print "# SKIPPED LINE WITHOUT transcript_id: " $0 > "/dev/stderr"
+                next
+            }
+            # Add transcript_type to lines that have transcript_id
             print $0 "; transcript_type \"protein_coding\";"
         }
     }' "$ORIGINAL_GTF" > "$MODIFIED_GTF"
@@ -72,11 +86,5 @@ singularity exec "$SIF" \
   -g "$MODIFIED_GTF" \
   -f "$FASTA" \
   -o "$OUTDIR"
-  
-echo ""
-echo "prepare_transcripts completed successfully."
-echo "Output files in: $OUTDIR"
-ls -la "$OUTDIR"
-
 date
 echo "Job completed on $(hostname)"
