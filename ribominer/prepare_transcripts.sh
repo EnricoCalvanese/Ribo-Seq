@@ -26,13 +26,13 @@ mkdir -p "$OUTDIR"
 awk '
 BEGIN { OFS = "\t" }
 {
-  # Append transcript_biotype to attributes
-  if ($9 ~ /transcript_biotype/) {
-    print;
-  } else {
-    if (substr($9, length($9)) != ";") $9 = $9 ";";
-    $9 = $9 " transcript_biotype \"protein_coding\";";
-    print;
+  # Extract transcript_id and gene_id using regex
+  match($9, /transcript_id "([^"]+)"/, tid)
+  match($9, /gene_id "([^"]+)"/, gid)
+
+  if (tid[1] != "" && gid[1] != "") {
+    $9 = "transcript_id \"" tid[1] "\"; gene_id \"" gid[1] "\"; transcript_biotype \"protein_coding\";"
+    print
   }
 }
 ' "$GTF_ORIG" > "$GTF_PATCHED"
