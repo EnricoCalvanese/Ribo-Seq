@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Reorder GTF features so exons come before corresponding CDS features
+# Reorder GTF features so genes come first, then transcripts, then exons before CDS
 # Usage: ./reorder_gtf.sh input.gtf output.gtf
 
 INPUT_FILE="$1"
@@ -11,9 +11,13 @@ if [ $# -ne 2 ]; then
     exit 1
 fi
 
-# Simple approach: sort by chromosome, transcript_id, start position, then feature type (exon before CDS)
+# Sort by chromosome, gene_id, feature priority, start position
 awk -F'\t' 'BEGIN{OFS="\t"} {
-    # Extract transcript_id
+    # Extract gene_id (this is consistent across gene/transcript/exon/CDS)
+    match($9, /gene_id "([^"]+)"/, gene_match)
+    gene_id = gene_match[1]
+    
+    # Extract transcript_id for sub-sorting
     match($9, /transcript_id "([^"]+)"/, trans_match)
     transcript_id = trans_match[1]
     
@@ -24,8 +28,8 @@ awk -F'\t' 'BEGIN{OFS="\t"} {
     else if ($3 == "CDS") priority = 3
     else priority = 4
     
-    # Create sort key: chromosome:transcript_id:start_position:priority
-    sort_key = $1 ":" transcript_id ":" sprintf("%010d", $4) ":" priority
+    # Create sort key: chromosome:gene_id:priority:transcript_id:start_position
+    sort_key = $1 ":" gene_id ":" priority ":" transcript_id ":" sprintf("%010d", $4)
     
     # Store line with sort key
     lines[sort_key] = $0
