@@ -15,8 +15,8 @@ echo "Starting prepare_transcripts job on $(hostname)"
 date
 
 # Paths
-ORIGINAL_GTF="/global/scratch/users/enricocalvane/riboseq/Athaliana_447_Araport11.gene.gtf"
-MODIFIED_GTF="/global/scratch/users/enricocalvane/riboseq/Athaliana_447_Araport11.gene.modified.gtf"
+ORIGINAL_GTF="/global/scratch/users/enricocalvane/riboseq/Araport11_GTF_genes_transposons.current.filtered.gtf"
+MODIFIED_GTF="/global/scratch/users/enricocalvane/riboseq/Araport11_GTF_genes_ribominer.gtf"
 FASTA="/global/scratch/users/enricocalvane/riboseq/Athaliana_447_TAIR10.fa"
 OUTDIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/prepared_transcripts"
 SIF="ribocode_ribominer_latest.sif"
