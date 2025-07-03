@@ -7,7 +7,7 @@
 #SBATCH --time=03:00:00
 #SBATCH --mail-user=enrico_calvane@berkeley.edu
 #SBATCH --mail-type=ALL
-#SBATCH --output=indexing_alignment_hisat.log
+#SBATCH --output=unique_read_extraction.log
 
 cd /global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/reads
 
