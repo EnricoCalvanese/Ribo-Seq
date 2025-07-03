@@ -4,7 +4,7 @@
 #SBATCH --qos=savio_normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=24
-#SBATCH --time=02:00:00
+#SBATCH --time=01:00:00
 #SBATCH --mail-user=enrico_calvane@berkeley.edu
 #SBATCH --mail-type=ALL
 #SBATCH --output=ribominer_quality_control.log
@@ -16,7 +16,7 @@
 # Define variables
 SIF="ribocode_ribominer_latest.sif"
 WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
-BAM_DIR="/global/scratch/users/enricocalvane/riboseq/imb2/unique_reads"
+BAM_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/reads/unique_reads"
 RIBOCODE_ANNOT="${WORK_DIR}/prepared_transcripts"
 LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
 QC_OUTPUT_DIR="${WORK_DIR}/quality_control"
