@@ -69,26 +69,34 @@ echo ""
 echo "Step 1: Analyzing periodicity for each sample..."
 echo "================================================"
 
+echo "Applying RiboMiner bug fix..."
+
+# Run periodicity analysis with the fix applied inline
 for sample in "${!BAM_FILES[@]}"; do
     bam_file="${BAM_DIR}/${BAM_FILES[$sample]}"
     output_prefix="${QC_OUTPUT_DIR}/${sample}_periodicity"
     
-    echo "Processing $sample (${BAM_LEGENDS[$sample]})..."
+    echo "Processing $sample..."
     
-    singularity exec "$SIF" \
+    # Use sed to fix the bug on-the-fly and run the analysis
+    singularity exec --writable-tmpfs "$SIF" /bin/bash -c "
+        # Fix the Python script
+        sed -i 's/transcript_dict\.key()/transcript_dict.keys()/g' /root/miniconda3/lib/python3.7/site-packages/RiboMiner/Periodicity.py
+        
+        # Run the analysis
         /root/miniconda3/bin/Periodicity \
-        -i "$bam_file" \
-        -a "$RIBOCODE_ANNOT" \
-        -o "$output_prefix" \
-        -c "$LONGEST_TRANSCRIPTS_INFO" \
-        -L 25 \
-        -R 35
+            -i '$bam_file' \
+            -a '$RIBOCODE_ANNOT' \
+            -o '$output_prefix' \
+            -c '$LONGEST_TRANSCRIPTS_INFO' \
+            -L 25 \
+            -R 35
+    "
     
     if [[ $? -eq 0 ]]; then
         echo "✓ Periodicity analysis completed for $sample"
     else
         echo "✗ Periodicity analysis failed for $sample"
-        exit 1
     fi
 done
 
