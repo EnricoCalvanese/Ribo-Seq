@@ -4,9 +4,10 @@
 #SBATCH --qos=savio_normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=24
-#SBATCH --time=06:00:00
+#SBATCH --time=01:00:00
 #SBATCH --mail-user=enrico_calvane@berkeley.edu
 #SBATCH --mail-type=ALL
+#SBATCH --output=sort_and_index.log
 
 # Directory variables for cleaner code
 UNIQUE_READS="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/reads/unique_reads"
