@@ -22,8 +22,7 @@ singularity exec "$SIF" \
   -c "$LONGEST_TRANSCRIPTS_INFO" \
   -o "$OUTPUT_PREFIX" \
   --mode whole \
-  --table 1 \
-  -S
+  --table 1
 
 echo "GetProteinCodingSequence completed successfully"
 echo "Generated files:"
