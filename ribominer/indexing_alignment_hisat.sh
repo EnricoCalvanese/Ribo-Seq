@@ -11,7 +11,7 @@
 
 # Set variables
 REFERENCE_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/reads"
-REFERENCE_FA="$/global/scratch/users/enricocalvane/riboseq/Athaliana_447_TAIR10.fa"
+REFERENCE_FA="/global/scratch/users/enricocalvane/riboseq/Athaliana_447_TAIR10.fa"
 INDEX_PREFIX="${REFERENCE_DIR}/Athaliana_447_TAIR10_index"
 OUTPUT_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/reads/hisat_alignment"
 
