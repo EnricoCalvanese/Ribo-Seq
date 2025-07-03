@@ -13,14 +13,6 @@
 # This script performs comprehensive quality control on ribosome profiling data
 # including periodicity checking, frame distribution, and length distribution
 
-# Define variables
-SIF="ribocode_ribominer_latest.sif"
-WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
-BAM_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/reads/unique_reads"
-RIBOCODE_ANNOT="${WORK_DIR}/prepared_transcripts"
-LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
-QC_OUTPUT_DIR="${WORK_DIR}/quality_control"
-
 # Create output directory
 mkdir -p "$QC_OUTPUT_DIR"
 cd "$WORK_DIR"
@@ -64,32 +56,44 @@ for sample in "${!BAM_FILES[@]}"; do
     echo "✓ $bam_file (indexed)"
 done
 
-# Step 1: Periodicity Analysis for each sample
+# Step 1: Periodicity Analysis for each sample with targeted fix
 echo ""
 echo "Step 1: Analyzing periodicity for each sample..."
 echo "================================================"
 
-echo "Applying RiboMiner bug fix..."
-
-# Run periodicity analysis with the fix applied inline
 for sample in "${!BAM_FILES[@]}"; do
     bam_file="${BAM_DIR}/${BAM_FILES[$sample]}"
     output_prefix="${QC_OUTPUT_DIR}/${sample}_periodicity"
     
-    echo "Processing $sample..."
+    echo "Processing $sample (${BAM_LEGENDS[$sample]})..."
+    echo "Applying targeted fix to line 39 of Periodicity.py..."
     
-    # Use sed to fix the bug on-the-fly and run the analysis
+    # Use --writable-tmpfs to create a writable overlay and fix the specific line
     singularity exec --writable-tmpfs "$SIF" /bin/bash -c "
-        # Fix the Python script
-        sed -i 's/transcript_dict\.key()/transcript_dict.keys()/g' /root/miniconda3/lib/python3.7/site-packages/RiboMiner/Periodicity.py
+        # Show the problematic line before fixing
+        echo 'Before fix - Line 39:'
+        sed -n '39p' /root/miniconda3/lib/python3.7/site-packages/RiboMiner/Periodicity.py
         
-        # Run the analysis
-        /root/miniconda3/bin/Periodicity \
-            -i '$bam_file' \
-            -a '$RIBOCODE_ANNOT' \
-            -o '$output_prefix' \
-            -c '$LONGEST_TRANSCRIPTS_INFO' \
-            -L 25 \
+        # Fix specifically line 39: change .key() to .keys()
+        # Using a more precise sed command to target only the problematic line
+        sed -i '39s/transcript_dict\.key()/transcript_dict.keys()/' /root/miniconda3/lib/python3.7/site-packages/RiboMiner/Periodicity.py
+        
+        # Verify the fix
+        echo 'After fix - Line 39:'
+        sed -n '39p' /root/miniconda3/lib/python3.7/site-packages/RiboMiner/Periodicity.py
+        
+        # Also check line 52 to make sure it's already correct
+        echo 'Line 52 (should already be correct):'
+        sed -n '52p' /root/miniconda3/lib/python3.7/site-packages/RiboMiner/Periodicity.py
+        
+        # Now run the analysis
+        echo 'Running Periodicity analysis with fixed code...'
+        /root/miniconda3/bin/Periodicity \\
+            -i '$bam_file' \\
+            -a '$RIBOCODE_ANNOT' \\
+            -o '$output_prefix' \\
+            -c '$LONGEST_TRANSCRIPTS_INFO' \\
+            -L 25 \\
             -R 35
     "
     
@@ -97,123 +101,46 @@ for sample in "${!BAM_FILES[@]}"; do
         echo "✓ Periodicity analysis completed for $sample"
     else
         echo "✗ Periodicity analysis failed for $sample"
+        echo "Debugging: Let's check what went wrong..."
+        
+        # If it still fails, let's debug further
+        singularity exec --writable-tmpfs "$SIF" /bin/bash -c "
+            # Apply the fix again
+            sed -i '39s/transcript_dict\.key()/transcript_dict.keys()/' /root/miniconda3/lib/python3.7/site-packages/RiboMiner/Periodicity.py
+            
+            # Check the transcript matching
+            echo 'Debugging transcript matching...'
+            python3 -c \"
+import pysam
+import sys
+sys.path.insert(0, '/root/miniconda3/lib/python3.7/site-packages')
+from RiboMiner.RiboMiner import load_transcripts_for_analysis
+
+# Load transcript data
+select_trans, transcript_dict = load_transcripts_for_analysis('$LONGEST_TRANSCRIPTS_INFO')
+print(f'Loaded {len(select_trans)} transcripts from longest transcripts file')
+print(f'Transcript dict has {len(transcript_dict)} entries')
+
+# Check BAM file references
+bamfile = pysam.AlignmentFile('$bam_file', 'rb')
+bam_refs = set(bamfile.references)
+print(f'BAM file has {len(bam_refs)} references')
+
+# Check intersection
+intersection = set(bam_refs).intersection(set(select_trans)).intersection(set(transcript_dict.keys()))
+print(f'Intersection has {len(intersection)} transcripts')
+
+if len(intersection) == 0:
+    print('No matching transcripts found!')
+    print('First 5 BAM references:', list(bam_refs)[:5])
+    print('First 5 select_trans:', list(select_trans)[:5])
+    print('First 5 transcript_dict keys:', list(transcript_dict.keys())[:5])
+else:
+    print('Found matching transcripts:', len(intersection))
+
+bamfile.close()
+\"
+        "
     fi
 done
 
-# Step 2: Frame Distribution Analysis
-echo ""
-echo "Step 2: Analyzing frame distribution..."
-echo "======================================"
-
-# Note: This step requires attributes.txt file to be created first
-# We'll create a temporary attributes.txt with estimated parameters
-# Users will need to refine this based on periodicity results
-
-echo "Creating temporary attributes.txt file..."
-echo "NOTE: You will need to update this file based on periodicity results"
-
-TEMP_ATTRIBUTES="${QC_OUTPUT_DIR}/temp_attributes.txt"
-echo -e "bamFiles\treadLengths\tOffsets\tbamLegends" > "$TEMP_ATTRIBUTES"
-
-for sample in "${!BAM_FILES[@]}"; do
-    bam_file="${BAM_DIR}/${BAM_FILES[$sample]}"
-    # Using common ribosome profiling parameters - adjust based on periodicity results
-    read_lengths="27,28,29,30"
-    offsets="12,12,13,14"  # Adjust these based on your periodicity analysis
-    legend="${BAM_LEGENDS[$sample]}"
-    
-    echo -e "${bam_file}\t${read_lengths}\t${offsets}\t${legend}" >> "$TEMP_ATTRIBUTES"
-done
-
-echo "Temporary attributes.txt created at: $TEMP_ATTRIBUTES"
-echo "Please review periodicity results and update read lengths and offsets accordingly"
-
-# Run frame distribution analysis with temporary attributes
-echo "Running frame distribution analysis..."
-singularity exec "$SIF" \
-    /root/miniconda3/bin/RiboDensityOfDiffFrames \
-    -f "$TEMP_ATTRIBUTES" \
-    -c "$LONGEST_TRANSCRIPTS_INFO" \
-    -o "${QC_OUTPUT_DIR}/frame_distribution" \
-    --plot yes
-
-if [[ $? -eq 0 ]]; then
-    echo "✓ Frame distribution analysis completed"
-else
-    echo "✗ Frame distribution analysis failed"
-fi
-
-# Step 3: Length Distribution Analysis
-echo ""
-echo "Step 3: Analyzing length distribution..."
-echo "======================================="
-
-for sample in "${!BAM_FILES[@]}"; do
-    bam_file="${BAM_DIR}/${BAM_FILES[$sample]}"
-    output_prefix="${QC_OUTPUT_DIR}/${sample}_length_dist"
-    
-    echo "Processing length distribution for $sample..."
-    
-    singularity exec "$SIF" \
-        /root/miniconda3/bin/LengthDistribution \
-        -i "$bam_file" \
-        -o "$output_prefix" \
-        -f bam
-    
-    if [[ $? -eq 0 ]]; then
-        echo "✓ Length distribution analysis completed for $sample"
-    else
-        echo "✗ Length distribution analysis failed for $sample"
-    fi
-done
-
-# Step 4: Create summary report
-echo ""
-echo "Step 4: Creating summary report..."
-echo "================================="
-
-SUMMARY_FILE="${QC_OUTPUT_DIR}/quality_control_summary.txt"
-cat > "$SUMMARY_FILE" << EOF
-RiboMiner Quality Control Summary
-Generated on: $(date)
-
-Analysis Directory: $WORK_DIR
-BAM Files Directory: $BAM_DIR
-Output Directory: $QC_OUTPUT_DIR
-
-Samples Analyzed:
-EOF
-
-for sample in "${!BAM_FILES[@]}"; do
-    echo "- $sample: ${BAM_FILES[$sample]} (${BAM_LEGENDS[$sample]})" >> "$SUMMARY_FILE"
-done
-
-cat >> "$SUMMARY_FILE" << EOF
-
-Files Generated:
-1. Periodicity Analysis: *_periodicity.pdf
-2. Frame Distribution: frame_distribution_*.pdf and frame_distribution_*.txt
-3. Length Distribution: *_length_dist.pdf and *_length_dist.txt
-4. Temporary Attributes File: temp_attributes.txt
-
-Next Steps:
-1. Review periodicity plots (*_periodicity.pdf) to determine optimal read lengths and offsets
-2. Update the attributes.txt file with the correct parameters
-3. Re-run frame distribution analysis if needed with updated parameters
-4. Proceed with metagene analysis using the finalized attributes.txt
-
-Important Notes:
-- The temp_attributes.txt file contains estimated parameters
-- Review periodicity results to optimize read lengths and offsets
-- Good ribosome profiling data should show strong 3-nt periodicity
-- Length distribution should peak around 28-30 nt
-- Frame distribution should show enrichment in one reading frame
-EOF
-
-echo "Quality control analysis completed!"
-echo "Summary report: $SUMMARY_FILE"
-echo ""
-echo "IMPORTANT: Please review the periodicity plots and update the attributes.txt file"
-echo "with the optimal read lengths and offsets before proceeding to metagene analysis."
-echo ""
-echo "Output files are located in: $QC_OUTPUT_DIR"
