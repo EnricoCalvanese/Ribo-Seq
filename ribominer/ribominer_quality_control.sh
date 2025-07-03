@@ -13,6 +13,14 @@
 # This script performs comprehensive quality control on ribosome profiling data
 # including periodicity checking, frame distribution, and length distribution
 
+# Define variables
+SIF="ribocode_ribominer_latest.sif"
+WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
+BAM_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/reads/unique_reads"
+RIBOCODE_ANNOT="${WORK_DIR}/prepared_transcripts"
+LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
+QC_OUTPUT_DIR="${WORK_DIR}/quality_control"
+
 # Create output directory
 mkdir -p "$QC_OUTPUT_DIR"
 cd "$WORK_DIR"
