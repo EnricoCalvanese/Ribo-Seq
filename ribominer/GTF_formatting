@@ -1,0 +1,48 @@
+awk -F'\t' 'BEGIN{OFS="\t"} 
+# First pass: identify gene_ids to exclude
+NR==FNR {
+    # List of unwanted feature types
+    if($3=="transposon_fragment" || $3=="transposable_element" || $3=="transposable_element_gene" || 
+       $3=="pseudogenic_exon" || $3=="lnc_RNA" || $3=="antisense_lncRNA" || 
+       $3=="pseudogenic_transcript" || $3=="pseudogene" || $3=="transcript_region" || 
+       $3=="tRNA" || $3=="miRNA_primary_transcript" || $3=="snoRNA" || $3=="ncRNA" || 
+       $3=="antisense_RNA" || $3=="snRNA" || $3=="pseudogenic_tRNA" || $3=="rRNA") {
+        match($9, /gene_id "([^"]+)"/, g); gid=g[1];
+        excluded_genes[gid] = 1;
+    }
+    next;
+}
+
+# Second pass: filter and sort
+{
+    match($9, /transcript_id "([^"]+)"/, m); tid=m[1];
+    match($9, /gene_id "([^"]+)"/, g); gid=g[1];
+    
+    # Skip if gene_id is in excluded list
+    if(gid in excluded_genes) next;
+    
+    # Skip chloroplast and mitochondrial genes
+    if(gid ~ /^ATCG/ || gid ~ /^ATMG/) next;
+    
+    # Skip individual protein and uORF features (but not their gene_ids)
+    if($3=="protein" || $3=="uORF") next;
+    
+    # Convert mRNA to transcript for consistency
+    if($3=="mRNA") $3="transcript";
+    
+    # Only keep gene, transcript, exon, and CDS features
+    if($3=="gene" || $3=="transcript" || $3=="exon" || $3=="CDS") {
+        if($3=="gene") {
+            p = 1; tid = ""; # Gene features get empty transcript_id and highest priority
+        } else {
+            p = ($3=="transcript")?2:($3=="exon")?3:($3=="CDS")?4:5;
+        }
+        k = $1":"gid":"tid":"sprintf("%010d",$4)":"p;
+        lines[k] = $0;
+    }
+} 
+
+END {
+    n=asorti(lines,keys); 
+    for(i=1;i<=n;i++) print lines[keys[i]];
+}' input.gtf input.gtf > filtered_and_sorted.gtf
