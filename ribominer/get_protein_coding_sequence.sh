@@ -10,14 +10,12 @@
 #SBATCH --output=get_protein_coding_sequence.log
 
 # Define variables
-SIF="ribocode_ribominer_latest.sif"
 TRANSCRIPTS_FA="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/prepared_transcripts/transcripts_sequence.fa"
 LONGEST_TRANSCRIPTS_INFO="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/longest.transcripts.info.txt"
 OUTPUT_PREFIX="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/longest"
 
 # Run GetProteinCodingSequence
-singularity exec "$SIF" \
-  /root/miniconda3/bin/GetProteinCodingSequence \
+GetProteinCodingSequence \
   -i "$TRANSCRIPTS_FA" \
   -c "$LONGEST_TRANSCRIPTS_INFO" \
   -o "$OUTPUT_PREFIX" \
