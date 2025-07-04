@@ -67,10 +67,10 @@ echo "Using modified GTF: $MODIFIED_GTF"
 echo "Using FASTA: $FASTA"
 echo "Output directory: $OUTDIR"
 
-singularity exec "$SIF" \
-  /root/miniconda3/bin/prepare_transcripts \
+prepare_transcripts \
   -g "$MODIFIED_GTF" \
   -f "$FASTA" \
   -o "$OUTDIR"
+  
 date
 echo "Job completed on $(hostname)"
