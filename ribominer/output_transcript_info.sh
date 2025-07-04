@@ -10,7 +10,6 @@
 #SBATCH --output=output_transcript_info.log
 
 # Define variables
-SIF="ribocode_ribominer_latest.sif"
 MODIFIED_GTF="/global/scratch/users/enricocalvane/riboseq/Araport11_GTF_genes_ribominer.gtf"
 TRANSCRIPTS_CDS="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/prepared_transcripts/transcripts_cds.txt"
 TRANSCRIPTS_FA="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/prepared_transcripts/transcripts_sequence.fa"
@@ -18,8 +17,7 @@ LONGEST_OUTPUT="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribomi
 ALL_OUTPUT="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/all.transcripts.info.txt"
 
 # Run OutputTranscriptInfo
-singularity exec "$SIF" \
-  /root/miniconda3/bin/OutputTranscriptInfo \
+OutputTranscriptInfo \
   -c "$TRANSCRIPTS_CDS" \
   -g "$MODIFIED_GTF" \
   -f "$TRANSCRIPTS_FA" \
