@@ -61,7 +61,7 @@ fi
 
 # Step 2: Run prepare_transcripts with the modified GTF
 echo ""
-echo "Step 2: Running prepare_transcripts with Singularity..."
+echo "Step 2: Running prepare_transcripts..."
 echo "Using modified GTF: $MODIFIED_GTF"
 echo "Using FASTA: $FASTA"
 echo "Output directory: $OUTDIR"
