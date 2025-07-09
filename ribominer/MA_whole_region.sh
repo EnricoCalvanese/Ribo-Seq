@@ -12,7 +12,7 @@
 # Define variables
 WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
 LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
-ATTRIBUTES_FILE="${WORK_DIR}/attributes.txt"
+ATTRIBUTES_FILE="${WORK_DIR}/attributes_transcriptome.txt"
 SELECT_TRANS_LIST="${WORK_DIR}/total_TEs.txt"
 OUTPUT_DIR="${WORK_DIR}/metagene_plots"
 
