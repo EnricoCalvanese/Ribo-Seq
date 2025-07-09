@@ -1,0 +1,5 @@
+bamFiles    readLengths Offsets bamLegends
+./LZT103-1_uniq_sort.bam    27,28,29,30 11,12,13,14 WT-1
+./LZT103-2_uniq_sort.bam    27,28,29,30 11,12,13,14 WT-2
+./LZT104-1_uniq_sort.bam    27,28,29,30 11,12,13,14 imb2-1
+./LZT104-2_uniq_sort.bam    27,28,29,30 11,12,13,14 imb2-2
