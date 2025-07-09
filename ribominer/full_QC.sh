@@ -18,7 +18,7 @@ BAM_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/tra
 GENOME_BAM_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/genome_aligned_reads/unique_reads"
 RIBOCODE_ANNOT="${WORK_DIR}/prepared_transcripts"
 LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
-ATTRIBUTES_FILE="${WORK_DIR}/attributes.txt"
+ATTRIBUTES_FILE="${WORK_DIR}/attributes_genome.txt"
 MODIFIED_GTF="/global/scratch/users/enricocalvane/riboseq/Araport11_GTF_genes_ribominer.gtf"
 OUTPUT_DIR="${WORK_DIR}/comprehensive_qc_analysis"
 
@@ -57,7 +57,7 @@ if [[ ! -f "$LONGEST_TRANSCRIPTS_INFO" ]]; then
 fi
 
 if [[ ! -f "$ATTRIBUTES_FILE" ]]; then
-    echo "Error: attributes.txt not found at $ATTRIBUTES_FILE"
+    echo "Error: attributes_genome.txt not found at $ATTRIBUTES_FILE"
     exit 1
 fi
 
