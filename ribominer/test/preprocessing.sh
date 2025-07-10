@@ -11,6 +11,8 @@
 
 cd /global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/yeast
 
+bio/fastqc/0.12.1-gcc-11.4.0
+
 fastqc SRR5008135.fastq -o .
 
 cutadapt -m 15 -M 35 --match-read-wildcards -a CTGTAGGCACCATCAAT -o SRR5008134.trimmed.fastq SRR5008134.fastq > SRR5008134_trimmed.log
