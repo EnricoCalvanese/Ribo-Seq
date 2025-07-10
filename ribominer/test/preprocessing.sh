@@ -23,3 +23,34 @@ fastq_quality_filter -Q33 -v -q 25 -p 75 -i SRR5008135.trimmed.fastq -o SRR50081
 fastq_quality_filter -Q33 -v -q 25 -p 75 -i SRR5008136.trimmed.fastq -o SRR5008136.trimmed.Qfilter.fastq > SRR5008136.Qfilter.log
 fastq_quality_filter -Q33 -v -q 25 -p 75 -i SRR5008137.trimmed.fastq -o SRR5008137.trimmed.Qfilter.fastq > SRR5008137.Qfilter.log
 
+module load bio/bowtie2/2.5.1-gcc-11.4.0
+
+# Index prefix
+INDEX="rRNA_index"
+THREADS=24
+
+# Loop over all SRR FASTQ files
+for fq in SRR*.fastq; do
+    sample=$(basename "$fq" .fastq)
+    unaligned="${sample}.nonrRNA.fastq"
+    aligned="${sample}.rRNA.sam"
+
+    echo "Processing $sample ..."
+
+    bowtie2 \
+        -x $INDEX \
+        -U "$fq" \
+        -S "$aligned" \
+        --un "$unaligned" \
+        --norc \
+        -p $THREADS \
+        --all \
+        --score-min "L,0,-0.15" \
+        -L 15 \
+        -D 20 \
+        -R 3 \
+        -N 0 \
+        -i S,1,0.50
+
+    echo "Done with $sample"
+done
