@@ -25,15 +25,19 @@ fastq_quality_filter -Q33 -v -q 25 -p 75 -i SRR5008135.trimmed.fastq -o SRR50081
 fastq_quality_filter -Q33 -v -q 25 -p 75 -i SRR5008136.trimmed.fastq -o SRR5008136.trimmed.Qfilter.fastq > SRR5008136.Qfilter.log
 fastq_quality_filter -Q33 -v -q 25 -p 75 -i SRR5008137.trimmed.fastq -o SRR5008137.trimmed.Qfilter.fastq > SRR5008137.Qfilter.log
 
+# Load Bowtie2 module
 module load bio/bowtie2/2.5.1-gcc-11.4.0
 
-# Index prefix
-INDEX="rRNA_index"
+# Use 24 threads and specify rRNA index
 THREADS=24
+INDEX="rRNA_index"
 
-# Loop over all SRR FASTQ files
-for fq in SRR*.fastq; do
-    sample=$(basename "$fq" .fastq)
+# Loop over all filtered FASTQ files
+for fq in *.trimmed.Qfilter.fastq; do
+    # Extract sample name prefix
+    sample=$(basename "$fq" .trimmed.Qfilter.fastq)
+
+    # Output files
     unaligned="${sample}.nonrRNA.fastq"
     aligned="${sample}.rRNA.sam"
 
@@ -54,5 +58,5 @@ for fq in SRR*.fastq; do
         -N 0 \
         -i S,1,0.50
 
-    echo "Done with $sample"
+    echo "Finished $sample"
 done
