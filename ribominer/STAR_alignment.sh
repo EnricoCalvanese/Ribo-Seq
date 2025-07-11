@@ -7,7 +7,7 @@
 #SBATCH --time=02:00:00
 #SBATCH --mail-user=enrico_calvane@berkeley.edu
 #SBATCH --mail-type=ALL
-#SBATCH --output=STAR_alignment.log
+#SBATCH --output=STAR_alignment_permissive.log
 
 # Load required modules
 module load bio/samtools/1.17-gcc-11.4.0
@@ -21,7 +21,7 @@ star_index_dir="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribomi
 
 # Create necessary directories
 mkdir -p $star_index_dir
-mkdir -p $workdir/STAR_alignment
+mkdir -p $workdir/STAR_alignment_permissive
 
 echo "Starting STAR genome indexing..."
 echo "Time: $(date)"
@@ -56,7 +56,7 @@ for sample in $samples; do
     fi
     
     # Create output directory for this sample
-    output_dir="$workdir/STAR_alignment"
+    output_dir="$workdir/STAR_alignment_permissive"
     
     echo "Aligning $sample with STAR..."
     
@@ -66,9 +66,10 @@ for sample in $samples; do
          --outWigType wiggle \
          --outWigStrand Stranded \
          --outWigNorm RPM \
-         --alignEndsType EndToEnd \
-         --outFilterMismatchNmax 1 \
-         --outFilterMultimapNmax 1 \
+         --outFilterMismatchNmax 3 \     
+         --outFilterMultimapNmax 20 \     
+         --outSAMmultNmax 1 \     
+         --outMultimapperOrder Random \ 
          --genomeDir $star_index_dir \
          --readFilesIn $fastq_dir/$read1 $fastq_dir/$read2 \
          --outFileNamePrefix $output_dir/${sample}. \
@@ -118,7 +119,7 @@ echo "Final completion time: $(date)"
 echo ""
 echo "=== OVERALL SUMMARY ==="
 echo "Total samples processed: $(echo $samples | wc -w)"
-echo "Results located in: $workdir/STAR_alignment/"
+echo "Results located in: $workdir/STAR_alignment_permissive/"
 echo "Index located in: $star_index_dir"
 echo ""
 echo "Output files for each sample:"
