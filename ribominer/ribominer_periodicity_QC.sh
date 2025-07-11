@@ -14,7 +14,7 @@
 
 # Define variables
 WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
-BAM_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/reads/unique_reads"
+BAM_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer/STAR_alignment_permissive"
 RIBOCODE_ANNOT="${WORK_DIR}/prepared_transcripts"
 LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
 OUTPUT_DIR="${WORK_DIR}/periodicity_analysis"
@@ -25,10 +25,10 @@ cd "$WORK_DIR"
 
 # Define BAM files and their information
 declare -A BAM_FILES=(
-    ["LZT103-1"]="LZT103-1_uniq_sort.bam"
-    ["LZT103-2"]="LZT103-2_uniq_sort.bam"
-    ["LZT104-1"]="LZT104-1_uniq_sort.bam"
-    ["LZT104-2"]="LZT104-2_uniq_sort.bam"
+    ["LZT103-1"]="LZT103-1.Aligned.toTranscriptome.out.sorted.bam"
+    ["LZT103-2"]="LZT103-2.Aligned.toTranscriptome.out.sorted.bam"
+    ["LZT104-1"]="LZT104-1.Aligned.toTranscriptome.out.sorted.bam"
+    ["LZT104-2"]="LZT104-2.Aligned.toTranscriptome.out.sorted.bam"
 )
 
 declare -A BAM_LEGENDS=(
