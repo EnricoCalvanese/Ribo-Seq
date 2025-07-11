@@ -61,21 +61,7 @@ for sample in $samples; do
     echo "Aligning $sample with STAR..."
     
     # Step 3: Run STAR alignment
-    STAR --runThreadN 24 \
-         --outFilterType Normal \
-         --outWigType wiggle \
-         --outWigStrand Stranded \
-         --outWigNorm RPM \
-         --outFilterMismatchNmax 3 \     
-         --outFilterMultimapNmax 20 \     
-         --outSAMmultNmax 1 \     
-         --outMultimapperOrder Random \ 
-         --genomeDir $star_index_dir \
-         --readFilesIn $fastq_dir/$read1 $fastq_dir/$read2 \
-         --outFileNamePrefix $output_dir/${sample}. \
-         --outSAMtype BAM SortedByCoordinate \
-         --quantMode TranscriptomeSAM GeneCounts \
-         --outSAMattributes All
+    STAR --runThreadN 24 --outFilterType Normal --outWigType wiggle --outWigStrand Stranded --outWigNorm RPM --outFilterMismatchNmax 3 --outFilterMultimapNmax 20 --outSAMmultNmax 1 --outMultimapperOrder Random --genomeDir $star_index_dir --readFilesIn $fastq_dir/$read1 $fastq_dir/$read2 --outFileNamePrefix $output_dir/${sample}. --outSAMtype BAM SortedByCoordinate --quantMode TranscriptomeSAM GeneCounts --outSAMattributes All
     
     echo "Alignment completed for $sample at: $(date)"
     echo "Starting post-processing..."
