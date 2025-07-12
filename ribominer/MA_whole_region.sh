@@ -7,7 +7,7 @@
 #SBATCH --time=01:00:00
 #SBATCH --mail-user=enrico_calvane@berkeley.edu
 #SBATCH --mail-type=ALL
-#SBATCH --output=metagene_analysis_whole_region.log
+#SBATCH --output=metagene_analysis_allgenes.log
 
 # Define variables
 WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
