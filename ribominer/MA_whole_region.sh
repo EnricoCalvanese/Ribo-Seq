@@ -14,7 +14,7 @@ WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
 LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
 ATTRIBUTES_FILE="${WORK_DIR}/attributes.txt"
 OUTPUT_DIR="${WORK_DIR}/metagene_plots"
-OUTPUT_PREFIX="${OUTPUT_DIR}/metagene_analysis"
+OUTPUT_PREFIX="${OUTPUT_DIR}/all_genes"
 
 # Create output directory if it doesn't exist
 mkdir -p ${OUTPUT_DIR}
