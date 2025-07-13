@@ -146,8 +146,8 @@ MetageneAnalysis \
     -S ${SELECT_TRANS_LIST} \
     -U nt \
     -M RPKM \
-    -u 150 \
-    -d 100 \
+    -u 300 \
+    -d 300 \
     -l 3 \
     -n 1 \
     -m 1 \
@@ -168,8 +168,8 @@ if [ -f "$UTR_FILE" ]; then
     PlotMetageneAnalysis \
         -i ${UTR_FILE} \
         -o ${OUTPUT_PREFIX}_UTR_grouped_plot \
-        -u 150 \
-        -d 100 \
+        -u 300 \
+        -d 300 \
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
         -U nt \
