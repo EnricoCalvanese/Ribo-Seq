@@ -33,10 +33,10 @@ MetageneAnalysisForTheWholeRegions \
     -o ${OUTPUT_PREFIX} \
     -S ${SELECT_TRANS_LIST} \
     -b 15,90,60 \
-    -l 100 \
-    -n 10 \
-    -m 1 \
-    -e 5 \
+    -l 3 \
+    -n 0 \
+    -m 0 \
+    -e 0 \
     --id-type=gene_id \
     --plot=yes
 
@@ -50,7 +50,6 @@ if [ -f "$DENSITY_FILE" ]; then
     PlotMetageneAnalysisForTheWholeRegions \
         -i ${DENSITY_FILE} \
         -o ${OUTPUT_PREFIX}_plot \
-        -S ${SELECT_TRANS_LIST} \
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
         -b 15,90,60 \
@@ -70,7 +69,7 @@ PolarityCalculation \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
     -o ${OUTPUT_PREFIX} \
     -S ${SELECT_TRANS_LIST} \
-    -n 64
+    -n 0
 
 echo "PolarityCalculation completed successfully!"
 
@@ -82,7 +81,6 @@ if [ -f "$POLARITY_FILE" ]; then
     PlotPolarity \
         -i ${POLARITY_FILE} \
         -o ${OUTPUT_PREFIX}_polarity_plot \
-        -S ${SELECT_TRANS_LIST} \
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
         -y 5
@@ -104,10 +102,10 @@ MetageneAnalysis \
     -M RPKM \
     -u 0 \
     -d 500 \
-    -l 100 \
-    -n 10 \
-    -m 1 \
-    -e 5 \
+    -l 3 \
+    -n 0 \
+    -m 0 \
+    -e 0 \
     --norm yes \
     -y 100 \
     --CI 0.95 \
@@ -123,7 +121,6 @@ if [ -f "$CDS_FILE" ]; then
     PlotMetageneAnalysis \
         -i ${CDS_FILE} \
         -o ${OUTPUT_PREFIX}_CDS_grouped_plot \
-        -S ${SELECT_TRANS_LIST} \
         -u 0 \
         -d 500 \
         -g WT,imb2 \
@@ -148,10 +145,10 @@ MetageneAnalysis \
     -M RPKM \
     -u 150 \
     -d 100 \
-    -l 25 \
-    -n 10 \
-    -m 1 \
-    -e 5 \
+    -l 3 \
+    -n 0 \
+    -m 0 \
+    -e 0 \
     --norm yes \
     -y 100 \
     --CI 0.95 \
@@ -167,7 +164,6 @@ if [ -f "$UTR_FILE" ]; then
     PlotMetageneAnalysis \
         -i ${UTR_FILE} \
         -o ${OUTPUT_PREFIX}_UTR_grouped_plot \
-        -S ${SELECT_TRANS_LIST} \
         -u 150 \
         -d 100 \
         -g WT,imb2 \
