@@ -4,15 +4,16 @@
 #SBATCH --qos=savio_normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=24
-#SBATCH --time=01:00:00
+#SBATCH --time=02:00:00
 #SBATCH --mail-user=enrico_calvane@berkeley.edu
 #SBATCH --mail-type=ALL
-#SBATCH --output=metagene_analysis_allgenes.log
+#SBATCH --output=metagene_analysis_whole_region.log
 
 # Define variables
 WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
 LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
 ATTRIBUTES_FILE="${WORK_DIR}/attributes.txt"
+SELECT_TRANS_LIST="${WORK_DIR}/total_TEs.txt"
 OUTPUT_DIR="${WORK_DIR}/metagene_plots"
 OUTPUT_PREFIX="${OUTPUT_DIR}/all_genes"
 
@@ -110,13 +111,13 @@ MetageneAnalysis \
 echo "MetageneAnalysis for CDS completed successfully!"
 
 # 6. Plot Metagene Analysis for CDS
-CDS_FILE="${OUTPUT_PREFIX}_CDS_CDS_normed_dataframe.txt"
+CDS_FILE="${OUTPUT_PREFIX}_CDS_CDS_dataframe.txt"
 if [ -f "$CDS_FILE" ]; then
     echo "6. Running PlotMetageneAnalysis for CDS..."
     
     PlotMetageneAnalysis \
         -i ${CDS_FILE} \
-        -o ${OUTPUT_PREFIX}_CDS_plot \
+        -o ${OUTPUT_PREFIX}_CDS_grouped_plot \
         -u 10 \
         -d 500 \
         -g WT,imb2 \
@@ -127,7 +128,23 @@ if [ -f "$CDS_FILE" ]; then
     echo "PlotMetageneAnalysis for CDS completed successfully!"
 else
     echo "Error: CDS dataframe file not found: $CDS_FILE"
-    echo "Cannot proceed with CDS plotting."
+    echo "Checking for alternative file names..."
+    # Check for alternative file names
+    if [ -f "${OUTPUT_PREFIX}_CDS_CDS_normed_dataframe.txt" ]; then
+        CDS_FILE="${OUTPUT_PREFIX}_CDS_CDS_normed_dataframe.txt"
+        echo "Found alternative file: $CDS_FILE"
+        PlotMetageneAnalysis \
+            -i ${CDS_FILE} \
+            -o ${OUTPUT_PREFIX}_CDS_grouped_plot \
+            -u 10 \
+            -d 500 \
+            -g WT,imb2 \
+            -r "WT-1,WT-2__imb2-1,imb2-2" \
+            -U codon \
+            --CI 0.95
+    else
+        echo "Cannot find CDS dataframe file for plotting."
+    fi
 fi
 
 # 7. Metagene Analysis for UTR
@@ -158,7 +175,7 @@ if [ -f "$UTR_FILE" ]; then
     
     PlotMetageneAnalysis \
         -i ${UTR_FILE} \
-        -o ${OUTPUT_PREFIX}_UTR_plot \
+        -o ${OUTPUT_PREFIX}_UTR_grouped_plot \
         -u 150 \
         -d 100 \
         -g WT,imb2 \
