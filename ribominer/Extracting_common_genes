@@ -1,0 +1,9 @@
+# Extract kept transcripts from each diagnostic output
+awk '{print $1}' WT_1_bins_density.txt > WT_1_transcripts.txt
+awk '{print $1}' WT_2_bins_density.txt > WT_2_transcripts.txt
+awk '{print $1}' imb2_1_bins_density.txt > imb2_1_transcripts.txt
+awk '{print $1}' imb2_2_bins_density.txt > imb2_2_transcripts.txt
+
+grep -Fxf TEdown_WT-1_transcripts.txt TEdown_WT-2_transcripts.txt > WT_common.txt
+grep -Fxf TEdown_imb2-1_transcripts.txt TEdown_imb2-2_transcripts.txt > imb2_common.txt
+grep -Fxf WT_common.txt imb2_common.txt > TEdn_common_transcripts.txt
