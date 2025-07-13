@@ -34,8 +34,8 @@ MetageneAnalysisForTheWholeRegions \
     -S ${SELECT_TRANS_LIST} \
     -b 15,90,60 \
     -l 3 \
-    -n 0 \
-    -m 0 \
+    -n 1 \
+    -m 1 \
     -e 0 \
     --id-type=gene_id \
     --plot=yes
@@ -83,6 +83,7 @@ if [ -f "$POLARITY_FILE" ]; then
         -o ${OUTPUT_PREFIX}_polarity_plot \
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
+        --mode mean \
         -y 5
     
     echo "PlotPolarity completed successfully!"
@@ -103,12 +104,13 @@ MetageneAnalysis \
     -u 0 \
     -d 500 \
     -l 3 \
-    -n 0 \
-    -m 0 \
+    -n 1 \
+    -m 1 \
     -e 0 \
     --norm yes \
     -y 100 \
     --CI 0.95 \
+    --id-type=gene_id \
     --type CDS
 
 echo "MetageneAnalysis for CDS completed successfully!"
@@ -146,12 +148,13 @@ MetageneAnalysis \
     -u 150 \
     -d 100 \
     -l 3 \
-    -n 0 \
-    -m 0 \
+    -n 1 \
+    -m 1 \
     -e 0 \
     --norm yes \
     -y 100 \
     --CI 0.95 \
+    --id-type=gene_id \
     --type UTR
 
 echo "MetageneAnalysis for UTR completed successfully!"
