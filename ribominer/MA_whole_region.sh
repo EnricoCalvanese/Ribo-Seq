@@ -66,13 +66,13 @@ echo "3. Running PolarityCalculation..."
 PolarityCalculation \
     -f ${ATTRIBUTES_FILE} \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
-    -o ${OUTPUT_PREFIX}_polarity \
+    -o ${OUTPUT_PREFIX} \
     -n 64
 
 echo "PolarityCalculation completed successfully!"
 
 # 4. Plot Polarity
-POLARITY_FILE="${OUTPUT_PREFIX}_dataframe.txt"
+POLARITY_FILE="${OUTPUT_PREFIX}_polarity_dataframe.txt"
 if [ -f "$POLARITY_FILE" ]; then
     echo "4. Running PlotPolarity..."
     
