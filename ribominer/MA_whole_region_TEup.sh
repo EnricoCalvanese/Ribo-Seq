@@ -34,8 +34,8 @@ MetageneAnalysisForTheWholeRegions \
     -S ${SELECT_TRANS_LIST} \
     -b 15,90,60 \
     -l 3 \
-    -n 0 \
-    -m 0 \
+    -n 1 \
+    -m 1 \
     -e 0 \
     --id-type=gene_id \
     --plot=yes
@@ -105,8 +105,8 @@ MetageneAnalysis \
     -u 0 \
     -d 500 \
     -l 3 \
-    -n 0 \
-    -m 0 \
+    -n 1 \
+    -m 1 \
     -e 0 \
     --norm yes \
     -y 100 \
@@ -149,8 +149,8 @@ MetageneAnalysis \
     -u 150 \
     -d 100 \
     -l 3 \
-    -n 0 \
-    -m 0 \
+    -n 1 \
+    -m 1 \
     -e 0 \
     --norm yes \
     -y 100 \
