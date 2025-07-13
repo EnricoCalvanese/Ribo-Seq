@@ -13,7 +13,7 @@
 WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
 LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
 ATTRIBUTES_FILE="${WORK_DIR}/attributes.txt"
-SELECT_TRANS_LIST="${WORK_DIR}/total_TEs.txt"
+SELECT_TRANS_LIST="${WORK_DIR}/"
 OUTPUT_DIR="${WORK_DIR}/metagene_plots"
 OUTPUT_PREFIX="${OUTPUT_DIR}/all_genes"
 
@@ -97,7 +97,7 @@ MetageneAnalysis \
     -o ${OUTPUT_PREFIX}_CDS \
     -U codon \
     -M RPKM \
-    -u 10 \
+    -u 0 \
     -d 500 \
     -l 100 \
     -n 10 \
@@ -118,7 +118,7 @@ if [ -f "$CDS_FILE" ]; then
     PlotMetageneAnalysis \
         -i ${CDS_FILE} \
         -o ${OUTPUT_PREFIX}_CDS_grouped_plot \
-        -u 10 \
+        -u 0 \
         -d 500 \
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
