@@ -72,7 +72,7 @@ PolarityCalculation \
 echo "PolarityCalculation completed successfully!"
 
 # 4. Plot Polarity
-POLARITY_FILE="${OUTPUT_PREFIX}_polarity_dataframe.txt"
+POLARITY_FILE="${OUTPUT_PREFIX}_dataframe.txt"
 if [ -f "$POLARITY_FILE" ]; then
     echo "4. Running PlotPolarity..."
     
@@ -123,7 +123,8 @@ if [ -f "$CDS_FILE" ]; then
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
         -U codon \
-        --CI 0.95
+        --CI 0.95 \
+        --mode mean
     
     echo "PlotMetageneAnalysis for CDS completed successfully!"
 else
@@ -164,7 +165,8 @@ if [ -f "$UTR_FILE" ]; then
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
         -U nt \
-        --CI 0.95
+        --CI 0.95 \
+        --mode mean
     
     echo "PlotMetageneAnalysis for UTR completed successfully!"
 else
