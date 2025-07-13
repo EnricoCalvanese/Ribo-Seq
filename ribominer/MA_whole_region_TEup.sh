@@ -69,6 +69,7 @@ PolarityCalculation \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
     -o ${OUTPUT_PREFIX} \
     -S ${SELECT_TRANS_LIST} \
+    --id-type=gene_id \
     -n 0
 
 echo "PolarityCalculation completed successfully!"
@@ -84,6 +85,7 @@ if [ -f "$POLARITY_FILE" ]; then
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
         -y 5
+        --mode mean
     
     echo "PlotPolarity completed successfully!"
 else
@@ -109,6 +111,7 @@ MetageneAnalysis \
     --norm yes \
     -y 100 \
     --CI 0.95 \
+    --id-type=gene_id \
     --type CDS
 
 echo "MetageneAnalysis for CDS completed successfully!"
@@ -152,6 +155,7 @@ MetageneAnalysis \
     --norm yes \
     -y 100 \
     --CI 0.95 \
+    --id-type=gene_id \
     --type UTR
 
 echo "MetageneAnalysis for UTR completed successfully!"
