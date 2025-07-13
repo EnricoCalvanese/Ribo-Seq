@@ -7,15 +7,15 @@
 #SBATCH --time=00:45:00
 #SBATCH --mail-user=enrico_calvane@berkeley.edu
 #SBATCH --mail-type=ALL
-#SBATCH --output=metagene_analysis_allgenes.log
+#SBATCH --output=metagene_analysis_TEdown_genes.log
 
 # Define variables
 WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
 LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
 ATTRIBUTES_FILE="${WORK_DIR}/attributes.txt"
-SELECT_TRANS_LIST="${WORK_DIR}/"
+SELECT_TRANS_LIST="${WORK_DIR}/TEdown_genes.txt"
 OUTPUT_DIR="${WORK_DIR}/metagene_plots"
-OUTPUT_PREFIX="${OUTPUT_DIR}/all_genes"
+OUTPUT_PREFIX="${OUTPUT_DIR}/TEdown"
 
 # Create output directory if it doesn't exist
 mkdir -p ${OUTPUT_DIR}
@@ -31,6 +31,7 @@ MetageneAnalysisForTheWholeRegions \
     -f ${ATTRIBUTES_FILE} \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
     -o ${OUTPUT_PREFIX} \
+    -S ${SELECT_TRANS_LIST} \
     -b 15,90,60 \
     -l 100 \
     -n 10 \
@@ -49,6 +50,7 @@ if [ -f "$DENSITY_FILE" ]; then
     PlotMetageneAnalysisForTheWholeRegions \
         -i ${DENSITY_FILE} \
         -o ${OUTPUT_PREFIX}_plot \
+        -S ${SELECT_TRANS_LIST} \
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
         -b 15,90,60 \
@@ -67,6 +69,7 @@ PolarityCalculation \
     -f ${ATTRIBUTES_FILE} \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
     -o ${OUTPUT_PREFIX} \
+    -S ${SELECT_TRANS_LIST} \
     -n 64
 
 echo "PolarityCalculation completed successfully!"
@@ -79,6 +82,7 @@ if [ -f "$POLARITY_FILE" ]; then
     PlotPolarity \
         -i ${POLARITY_FILE} \
         -o ${OUTPUT_PREFIX}_polarity_plot \
+        -S ${SELECT_TRANS_LIST} \
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
         -y 5
@@ -95,6 +99,7 @@ MetageneAnalysis \
     -f ${ATTRIBUTES_FILE} \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
     -o ${OUTPUT_PREFIX}_CDS \
+    -S ${SELECT_TRANS_LIST} \
     -U codon \
     -M RPKM \
     -u 0 \
@@ -118,6 +123,7 @@ if [ -f "$CDS_FILE" ]; then
     PlotMetageneAnalysis \
         -i ${CDS_FILE} \
         -o ${OUTPUT_PREFIX}_CDS_grouped_plot \
+        -S ${SELECT_TRANS_LIST} \
         -u 0 \
         -d 500 \
         -g WT,imb2 \
@@ -137,6 +143,7 @@ MetageneAnalysis \
     -f ${ATTRIBUTES_FILE} \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
     -o ${OUTPUT_PREFIX}_UTR \
+    -S ${SELECT_TRANS_LIST} \
     -U nt \
     -M RPKM \
     -u 150 \
@@ -160,6 +167,7 @@ if [ -f "$UTR_FILE" ]; then
     PlotMetageneAnalysis \
         -i ${UTR_FILE} \
         -o ${OUTPUT_PREFIX}_UTR_grouped_plot \
+        -S ${SELECT_TRANS_LIST} \
         -u 150 \
         -d 100 \
         -g WT,imb2 \
