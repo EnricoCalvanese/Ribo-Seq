@@ -97,7 +97,6 @@ PolarityCalculation \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
     -o ${OUTPUT_PREFIX} \
     -S ${SELECT_TRANS_LIST} \
-    --id-type=gene_id \
     -n 0
 
 echo "PolarityCalculation completed successfully!"
