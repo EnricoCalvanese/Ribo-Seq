@@ -13,15 +13,45 @@
 WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
 LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
 ATTRIBUTES_FILE="${WORK_DIR}/attributes.txt"
-SELECT_TRANS_LIST="${WORK_DIR}/TEup_genes.txt"
 OUTPUT_DIR="${WORK_DIR}/metagene_plots"
-OUTPUT_PREFIX="${OUTPUT_DIR}/TEup"
+OUTPUT_PREFIX="${OUTPUT_DIR}/TE_up"
 
 # Create output directory if it doesn't exist
 mkdir -p ${OUTPUT_DIR}
+mkdir -p ${WORK_DIR}/metagene_plots/common_genes
 
 # Change to working directory
-cd ${WORK_DIR}
+cd ${WORK_DIR}/metagene_plots
+
+#Diagnostic ribominer run
+
+MetageneAnalysisForTheWholeRegions \
+    -f ${ATTRIBUTES_FILE} \
+    -c ${LONGEST_TRANSCRIPTS_INFO} \
+    -o ${OUTPUT_PREFIX} \
+    -S ${SELECT_TRANS_LIST} \
+    -b 15,90,60 \
+    -l 3 \
+    -n 1 \
+    -m 1 \
+    -e 0 \
+    --id-type=gene_id \
+    --plot=no
+
+# Extract kept transcripts from each diagnostic output
+awk '{print $1}' TE_up_WT-1_bins_density.txtl > common_genes/TE_up_WT-1_transcripts.txt
+awk '{print $1}' TE_up_WT-2_bins_density.txtl > common_genes/TE_up_WT-2_transcripts.txt
+awk '{print $1}' TE_up_imb2-1_bins_density.txtl > common_genes/TE_up_imb2-1_transcripts.txt
+awk '{print $1}' TE_up_imb2-2_bins_density.txtl > common_genes/TE_up_imb2-2_transcripts.txt
+
+cd mkdir -p ${WORK_DIR}/metagene_plots/common_genes
+
+grep -Fxf TE_up_WT-1_transcripts.txt TE_up_WT-2_transcripts.txt > TE_up_WT_common.txt
+grep -Fxf TE_up_imb2-1_transcripts.txt TE_up_imb2-2_transcripts.txt > TE_up_imb2_common.txt
+grep -Fxf TE_up_WT_common.txt TE_up_imb2_common.txt > TE_up_common.txt
+
+SELECT_TRANS_LIST="${WORK_DIR}/all_genes_common.txt"
+
 
 # 1. Run MetageneAnalysisForTheWholeRegions
 echo "1. Running MetageneAnalysisForTheWholeRegions..."
@@ -30,7 +60,7 @@ MetageneAnalysisForTheWholeRegions \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
     -o ${OUTPUT_PREFIX} \
     -S ${SELECT_TRANS_LIST} \
-    -b 30,90,15 \
+    -b 60,90,15 \
     -l 3 \
     -n 1 \
     -m 1 \
@@ -43,16 +73,16 @@ echo "MetageneAnalysisForTheWholeRegions completed successfully!"
 DENSITY_FILE="${OUTPUT_PREFIX}_scaled_density_dataframe.txt"
 if [ -f "$DENSITY_FILE" ]; then
     echo "2. Running PlotMetageneAnalysisForTheWholeRegions..."
-
+    
     PlotMetageneAnalysisForTheWholeRegions \
         -i ${DENSITY_FILE} \
         -o ${OUTPUT_PREFIX}_plot \
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
-        -b 30,90,15 \
+        -b 60,90,15 \
         --mode all \
         --xlabel-loc -0.4
-
+    
     echo "PlotMetageneAnalysisForTheWholeRegions completed successfully!"
 else
     echo "Error: Density dataframe file not found: $DENSITY_FILE"
@@ -66,6 +96,7 @@ PolarityCalculation \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
     -o ${OUTPUT_PREFIX} \
     -S ${SELECT_TRANS_LIST} \
+    --id-type=gene_id \
     -n 0
 
 echo "PolarityCalculation completed successfully!"
@@ -74,7 +105,7 @@ echo "PolarityCalculation completed successfully!"
 POLARITY_FILE="${OUTPUT_PREFIX}_polarity_dataframe.txt"
 if [ -f "$POLARITY_FILE" ]; then
     echo "4. Running PlotPolarity..."
-
+    
     PlotPolarity \
         -i ${POLARITY_FILE} \
         -o ${OUTPUT_PREFIX}_polarity_plot \
@@ -82,7 +113,7 @@ if [ -f "$POLARITY_FILE" ]; then
         -r "WT-1,WT-2__imb2-1,imb2-2" \
         --mode mean \
         -y 5
-
+    
     echo "PlotPolarity completed successfully!"
 else
     echo "Error: Polarity dataframe file not found: $POLARITY_FILE"
@@ -98,8 +129,8 @@ MetageneAnalysis \
     -S ${SELECT_TRANS_LIST} \
     -U codon \
     -M RPKM \
-    -u 50 \
-    -d 200 \
+    -u 0 \
+    -d 500 \
     -l 3 \
     -n 1 \
     -m 1 \
@@ -115,19 +146,63 @@ echo "MetageneAnalysis for CDS completed successfully!"
 CDS_FILE="${OUTPUT_PREFIX}_CDS_dataframe.txt"
 if [ -f "$CDS_FILE" ]; then
     echo "6. Running PlotMetageneAnalysis for CDS..."
-
+    
     PlotMetageneAnalysis \
         -i ${CDS_FILE} \
         -o ${OUTPUT_PREFIX}_CDS_grouped_plot \
-        -u 50 \
-        -d 200 \
+        -u 0 \
+        -d 500 \
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
         -U codon \
         --CI 0.95 \
         --mode mean
-
+    
     echo "PlotMetageneAnalysis for CDS completed successfully!"
 else
     echo "Cannot find CDS dataframe file for plotting."
+fi
+
+# 7. Metagene Analysis for UTR
+echo "7. Running MetageneAnalysis for UTR..."
+MetageneAnalysis \
+    -f ${ATTRIBUTES_FILE} \
+    -c ${LONGEST_TRANSCRIPTS_INFO} \
+    -o ${OUTPUT_PREFIX}_UTR \
+    -S ${SELECT_TRANS_LIST} \
+    -U nt \
+    -M RPKM \
+    -u 300 \
+    -d 300 \
+    -l 3 \
+    -n 1 \
+    -m 1 \
+    -e 0 \
+    --norm yes \
+    -y 100 \
+    --CI 0.95 \
+    --type UTR
+
+echo "MetageneAnalysis for UTR completed successfully!"
+
+# 8. Plot Metagene Analysis for UTR
+UTR_FILE="${OUTPUT_PREFIX}_UTR_dataframe.txt"
+if [ -f "$UTR_FILE" ]; then
+    echo "8. Running PlotMetageneAnalysis for UTR..."
+    
+    PlotMetageneAnalysis \
+        -i ${UTR_FILE} \
+        -o ${OUTPUT_PREFIX}_UTR_grouped_plot \
+        -u 300 \
+        -d 300 \
+        -g WT,imb2 \
+        -r "WT-1,WT-2__imb2-1,imb2-2" \
+        -U nt \
+        --CI 0.95 \
+        --mode mean
+    
+    echo "PlotMetageneAnalysis for UTR completed successfully!"
+else
+    echo "Error: UTR dataframe file not found: $UTR_FILE"
+    echo "Cannot proceed with UTR plotting."
 fi
