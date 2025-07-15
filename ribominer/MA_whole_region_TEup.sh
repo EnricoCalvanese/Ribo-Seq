@@ -13,6 +13,7 @@
 WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
 LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
 ATTRIBUTES_FILE="${WORK_DIR}/attributes.txt"
+SELECT_TRANS_LIST="${WORK_DIR}/TEup0.5_genes.txt"
 OUTPUT_DIR="${WORK_DIR}/metagene_plots"
 OUTPUT_PREFIX="${OUTPUT_DIR}/TE_up"
 
@@ -50,7 +51,7 @@ grep -Fxf TE_up_WT-1_transcripts.txt TE_up_WT-2_transcripts.txt > TE_up_WT_commo
 grep -Fxf TE_up_imb2-1_transcripts.txt TE_up_imb2-2_transcripts.txt > TE_up_imb2_common.txt
 grep -Fxf TE_up_WT_common.txt TE_up_imb2_common.txt > TE_up_common.txt
 
-SELECT_TRANS_LIST="${WORK_DIR}/all_genes_common.txt"
+SELECT_TRANS_LIST="${WORK_DIR}/metagene_plots/common_genes/TE_up_common.txt"
 
 
 # 1. Run MetageneAnalysisForTheWholeRegions
