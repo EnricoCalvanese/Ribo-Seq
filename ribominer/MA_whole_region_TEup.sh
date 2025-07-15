@@ -40,10 +40,10 @@ MetageneAnalysisForTheWholeRegions \
     --plot=no
 
 # Extract kept transcripts from each diagnostic output
-awk '{print $1}' TE_up_WT-1_bins_density.txtl > common_genes/TE_up_WT-1_transcripts.txt
-awk '{print $1}' TE_up_WT-2_bins_density.txtl > common_genes/TE_up_WT-2_transcripts.txt
-awk '{print $1}' TE_up_imb2-1_bins_density.txtl > common_genes/TE_up_imb2-1_transcripts.txt
-awk '{print $1}' TE_up_imb2-2_bins_density.txtl > common_genes/TE_up_imb2-2_transcripts.txt
+awk '{print $1}' TE_up_WT-1_bins_density.txt > common_genes/TE_up_WT-1_transcripts.txt
+awk '{print $1}' TE_up_WT-2_bins_density.txt > common_genes/TE_up_WT-2_transcripts.txt
+awk '{print $1}' TE_up_imb2-1_bins_density.txt > common_genes/TE_up_imb2-1_transcripts.txt
+awk '{print $1}' TE_up_imb2-2_bins_density.txt > common_genes/TE_up_imb2-2_transcripts.txt
 
 cd mkdir -p ${WORK_DIR}/metagene_plots/common_genes
 
