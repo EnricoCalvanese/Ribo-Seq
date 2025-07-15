@@ -32,7 +32,7 @@ MetageneAnalysisForTheWholeRegions \
     -o ${OUTPUT_PREFIX} \
     -S ${SELECT_TRANS_LIST} \
     -b 15,90,60 \
-    -l 3 \
+    -l 30 \
     -n 1 \
     -m 1 \
     -e 0 \
