@@ -13,30 +13,55 @@
 WORK_DIR="/global/scratch/users/enricocalvane/riboseq/metagene_plot_ribominer"
 LONGEST_TRANSCRIPTS_INFO="${WORK_DIR}/longest.transcripts.info.txt"
 ATTRIBUTES_FILE="${WORK_DIR}/attributes.txt"
-SELECT_TRANS_LIST="${WORK_DIR}/total_TEs.txt"
 OUTPUT_DIR="${WORK_DIR}/metagene_plots"
 OUTPUT_PREFIX="${OUTPUT_DIR}/all_genes"
 
 # Create output directory if it doesn't exist
 mkdir -p ${OUTPUT_DIR}
+mkdir -p ${WORK_DIR}/metagene_plots/common_genes
 
 # Change to working directory
-cd ${WORK_DIR}
+cd ${WORK_DIR}/metagene_plots
 
-echo "=== Starting Ribominer Analysis Pipeline ==="
+#Diagnostic ribominer run
 
+MetageneAnalysisForTheWholeRegions \
+    -f ${ATTRIBUTES_FILE} \
+    -c ${LONGEST_TRANSCRIPTS_INFO} \
+    -o ${OUTPUT_PREFIX} \
+    -b 60,90,15 \
+    -l 100 \
+    -n 10 \
+    -m 1 \
+    -e 5 \
+    --plot=no
+
+# Extract kept transcripts from each diagnostic output
+awk '{print $1}' all_genes_WT-1_bins_density.txtl > common_genes/all_genes_WT-1_transcripts.txt
+awk '{print $1}' all_genes_WT-2_bins_density.txtl > common_genes/all_genes_WT-2_transcripts.txt
+awk '{print $1}' all_genes_imb2-1_bins_density.txtl > common_genes/all_genes_imb2-1_transcripts.txt
+awk '{print $1}' all_genes_imb2-2_bins_density.txtl > common_genes/all_genes_imb2-2_transcripts.txt
+
+cd mkdir -p ${WORK_DIR}/metagene_plots/common_genes
+
+grep -Fxf all_genes_WT-1_transcripts.txt all_genes_WT-2_transcripts.txt > allgenes_WT_common.txt
+grep -Fxf all_genes_imb2-1_transcripts.txt all_genes_imb2-2_transcripts.txt > allgenes_imb2_common.txt
+grep -Fxf allgenes_WT_common.txt allgenes_imb2_common.txt > all_genes_common.txt
+
+SELECT_TRANS_LIST="${WORK_DIR}/all_genes_common.txt"
+    
 # 1. Run MetageneAnalysisForTheWholeRegions
 echo "1. Running MetageneAnalysisForTheWholeRegions..."
 MetageneAnalysisForTheWholeRegions \
     -f ${ATTRIBUTES_FILE} \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
     -o ${OUTPUT_PREFIX} \
-    -b 15,90,60 \
+    -S ${SELECT_TRANS_LIST} \
+    -b 60,90,15 \
     -l 100 \
-    -n 10 \
-    -m 1 \
-    -e 5 \
-    --id-type=gene_id \
+    -n 0 \
+    -m 0 \
+    -e 0 \
     --plot=yes
 
 echo "MetageneAnalysisForTheWholeRegions completed successfully!"
@@ -51,7 +76,7 @@ if [ -f "$DENSITY_FILE" ]; then
         -o ${OUTPUT_PREFIX}_plot \
         -g WT,imb2 \
         -r "WT-1,WT-2__imb2-1,imb2-2" \
-        -b 15,90,60 \
+        -b 60,90,15 \
         --mode all \
         --xlabel-loc -0.4
 
@@ -66,8 +91,9 @@ echo "3. Running PolarityCalculation..."
 PolarityCalculation \
     -f ${ATTRIBUTES_FILE} \
     -c ${LONGEST_TRANSCRIPTS_INFO} \
+    -S ${SELECT_TRANS_LIST} \
     -o ${OUTPUT_PREFIX} \
-    -n 64
+    -n 0
 
 echo "PolarityCalculation completed successfully!"
 
@@ -130,57 +156,3 @@ if [ -f "$CDS_FILE" ]; then
 else
     echo "Cannot find CDS dataframe file for plotting."
 fi
-
-# 7. Metagene Analysis for UTR
-echo "7. Running MetageneAnalysis for UTR..."
-MetageneAnalysis \
-    -f ${ATTRIBUTES_FILE} \
-    -c ${LONGEST_TRANSCRIPTS_INFO} \
-    -o ${OUTPUT_PREFIX}_UTR \
-    -U nt \
-    -M RPKM \
-    -u 150 \
-    -d 100 \
-    -l 25 \
-    -n 10 \
-    -m 1 \
-    -e 5 \
-    --norm yes \
-    -y 100 \
-    --CI 0.95 \
-    --type UTR
-
-echo "MetageneAnalysis for UTR completed successfully!"
-
-# 8. Plot Metagene Analysis for UTR
-UTR_FILE="${OUTPUT_PREFIX}_UTR_dataframe.txt"
-if [ -f "$UTR_FILE" ]; then
-    echo "8. Running PlotMetageneAnalysis for UTR..."
-
-    PlotMetageneAnalysis \
-        -i ${UTR_FILE} \
-        -o ${OUTPUT_PREFIX}_UTR_grouped_plot \
-        -u 150 \
-        -d 100 \
-        -g WT,imb2 \
-        -r "WT-1,WT-2__imb2-1,imb2-2" \
-        -U nt \
-        --CI 0.95 \
-        --mode mean
-
-    echo "PlotMetageneAnalysis for UTR completed successfully!"
-else
-    echo "Error: UTR dataframe file not found: $UTR_FILE"
-    echo "Cannot proceed with UTR plotting."
-fi
-
-echo "=== All Ribominer analyses completed successfully! ==="
-echo "Output files are located in: ${OUTPUT_DIR}"
-
-# Summary of output files
-echo ""
-echo "=== Summary of Output Files ==="
-echo "Whole regions analysis: ${OUTPUT_PREFIX}*"
-echo "Polarity analysis: ${OUTPUT_PREFIX}_polarity*"
-echo "CDS analysis: ${OUTPUT_PREFIX}_CDS*"
-echo "UTR analysis: ${OUTPUT_PREFIX}_UTR*"
